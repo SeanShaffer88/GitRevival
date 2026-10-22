@@ -1,0 +1,8 @@
+{
+  "name": "old-orbit-demo",
+  "private": true,
+  "description": "Synthetic inspection fixture. Never install or execute.",
+  "engines": {"node": ">=8"},
+  "dependencies": {"orbit-renderer-example": "*", "orbit-utils-example": "1.2.0"},
+  "scripts": {"build": "echo This is a static demo fixture"}
+}

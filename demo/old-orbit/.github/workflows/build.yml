@@ -1,0 +1,8 @@
+# Synthetic fixture. This is not the GitRevival CI workflow.
+name: Legacy demo
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
