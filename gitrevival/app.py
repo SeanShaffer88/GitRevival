@@ -135,7 +135,10 @@ class App(tk.Tk):
         self.canvas.bind('<Configure>', lambda e: self.draw_map())
         self.dependencies = self.make_tree(self.deps_tab, ('name','version','eco','file'), ('Dependency','Declared version / constraint','Ecosystem','Manifest'), (220,230,130,300))
         self.scope = self.textbox(self.scope_tab)
-        self.footer_var = tk.StringVar(value='Offline • Static inspection • Build status unverified')
+        from .discovery import Discovery
+        self.discovery = Discovery(self.tabs,self)
+        self.tabs.add(self.discovery,text='Discover & GitHub')
+        self.footer_var = tk.StringVar(value='Local inspection • Optional GitHub checks in Discover & GitHub • Build status unverified')
         ttk.Label(self, textvariable=self.footer_var, style='Muted.TLabel', padding=(24,12)).pack(fill='x')
         self.refresh_projects()
         self.after(100, self.poll)
@@ -262,7 +265,7 @@ class App(tk.Tk):
                  f'Ecosystems: {", ".join(report.ecosystems) or "Not identified"}\n\n'
                  'This is a bounded static inspection, not a verified build, vulnerability scan, dependency resolution or legal opinion. '
                  'Version constraints are declarations, not proof that packages can be downloaded or used. '
-                 'No remote maintenance, releases or advisory databases were queried.\n\n'
+                 'This local scan did not query remote maintenance, releases or advisories. Optional GitHub evidence is available in Discover & GitHub and may be linked to this project.\n\n'
                  'Excluded: Git internals, generated builds, vendor/node_modules, virtual environments, symlinks and reparse directories. '
                  'Limits: 15,000 files; 512 KB per inspected file; 12 MB total inspected text. '
                  'Only selected manifests, README/license files and GitHub workflows are read. '
@@ -271,6 +274,7 @@ class App(tk.Tk):
                  '\n\nLICENSE FILES\n' + ('\n'.join(report.licenses) or 'None observed.'))
         self.set_text(self.scope, scope)
         self.draw_map()
+        self.discovery.project_changed()
         self.footer_var.set(f'{len(report.warnings)} scope warnings • Saved locally • Build status unverified')
 
     def render_findings(self):
@@ -373,17 +377,29 @@ class App(tk.Tk):
                 messagebox.showerror('Export failed',str(exc))
 
     def close(self):
-        if self.discard_guard():
+        if self.discard_guard() and self.discovery.guard():
             self.store.close()
             self.destroy()
+
+    def destroy(self):
+        for callback in self.tk.call('after','info'):
+            self.tk.call('after','cancel',callback)
+        super().destroy()
 
 def main():
     parser = argparse.ArgumentParser(description='GitRevival desktop workbench')
     parser.add_argument('repository', nargs='?')
+    parser.add_argument('--discover',action='store_true',help='Open the saved revival shortlist')
     args = parser.parse_args()
     app = App()
     if args.repository:
         app.after(200, lambda: app.scan(args.repository))
+    if args.discover:
+        app.tabs.select(app.discovery)
+        if app.store.candidates():
+            app.discovery.show_saved()
+        else:
+            app.discovery.cached_search()
     app.mainloop()
 
 if __name__ == '__main__':
