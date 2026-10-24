@@ -4,6 +4,15 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      candidate_url:
+        description: Public GitRevival portable release ZIP
+        type: string
+        default: ''
+      candidate_sha256:
+        description: Expected SHA256
+        type: string
+        default: ''
 permissions:
   contents: read
 jobs:
@@ -20,3 +29,32 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m unittest discover -s tests -v
+  portable:
+    if: github.event_name == 'workflow_dispatch' && inputs.candidate_url != ''
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify exact release package
+        shell: pwsh
+        env:
+          CANDIDATE_URL: ${{ inputs.candidate_url }}
+          CANDIDATE_SHA256: ${{ inputs.candidate_sha256 }}
+        run: |
+          if (!$env:CANDIDATE_URL.StartsWith('https://github.com/SeanShaffer88/GitRevival/releases/download/')) { throw 'Unexpected release URL' }
+          if ($env:CANDIDATE_SHA256 -notmatch '^[a-f0-9]{64}$') { throw 'Invalid digest' }
+          Invoke-WebRequest $env:CANDIDATE_URL -OutFile candidate.zip
+          if ((Get-FileHash candidate.zip -Algorithm SHA256).Hash.ToLower() -ne $env:CANDIDATE_SHA256) { throw 'Digest mismatch' }
+          Expand-Archive candidate.zip candidate
+          python tools/test_portable.py --package candidate/GitRevival-0.3.0-win-x64 --results portable-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: portable-evidence-${{ matrix.os }}
+          path: portable-results.json
