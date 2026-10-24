@@ -4,6 +4,10 @@ A local desktop workbench for bringing old software projects back to life.
 
 **Version 0.3.0 — planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
 
+## Windows portable download
+
+The 0.3.0 release supplies `GitRevival-0.3.0-win-x64.zip` with isolated CPython 3.15.1/Tcl-Tk. Extract into a writable folder and run **Start GitRevival.bat**; no installed Python is required. To update, close the app, back up `.local`, then copy that folder into the new app folder. Source ZIPs retain the Python 3.11+ requirement below. Runtime notices and per-file hashes accompany the portable ZIP.
+
 ## Start
 
 On Windows, double-click **Start GitRevival.bat** or **launch.pyw**. Alternatively, open a terminal in this folder and run:
@@ -134,3 +138,7 @@ Consulted the shared resource catalog's desktop SDK and language sections. Chose
 Sources: [Tkinter](https://docs.python.org/3/library/tkinter.html), [sqlite3](https://docs.python.org/3/library/sqlite3.html). Python and Tcl/Tk have their own upstream licenses; they are prerequisites and are not bundled in this source distribution.
 
 MIT licensed. The demo is an original synthetic fixture and is not a vendored upstream project.
+
+### Windows packaging
+
+`python tools/package_windows.py --python-root PATH_TO_CPYTHON_3_15_1 --output NEW_PARENT` packages tracked sources and an isolated local runtime. No user state or site packages are copied. `python tools/test_portable.py --package PATH --results NEW_JSON` checks hashes, relocates to spaces/Unicode, exercises Tk, runs the complete test suite and CLI, and launches the windowed app with only System32 on PATH. Runtime notices, source URLs and hashes are under `licenses/runtime`. Interpreter binaries are unmodified; omitted optional tooling is documented in PORTABLE.txt.
