@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 — 2026-10-23
+
+- Added all 15 planning/review improvements documented in README: severity/dependency filters, sorting, progress, priority/due dates, custom tasks, task history, scan snapshots/differences, SQLite backups, CSV exports, headless inspection/comparison and keyboard help.
+- Kept the existing Python/Tk and SQLite stack; no third-party dependency or new network behavior.
+- Additive workspace migration preserves existing notes and GitHub evidence. Latest 20 scans retained per project; task history begins with this version.
+- Windows validation: 31 tests passed; 1 existing symlink test skipped because symlink creation is unavailable. Includes native Tk planning/discovery flows, old-schema migration, backup integrity, CSV formula escaping, snapshot retention and headless CLI subprocesses.
+
 ## 0.2.0 — 2026-10-22
 
 - Added live read-only GitHub search and repository checks with dated metadata, release, commit and issue samples.

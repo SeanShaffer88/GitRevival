@@ -2,7 +2,7 @@
 
 A local desktop workbench for bringing old software projects back to life.
 
-**Version 0.2.0 — live GitHub evidence and project discovery.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
+**Version 0.3.0 — planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
 
 ## Start
 
@@ -26,6 +26,35 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 6. Export Markdown or JSON for working with a coding assistant or preparing a revival plan. Exports include local paths, manifest snippets and notes; review them before sharing.
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
+
+## Planning and review improvements (0.3.0)
+
+1. **Severity filter:** limit the backlog to Review or Info findings alongside existing search/state/category filters.
+2. **Dependency search:** search extracted names, constraints, ecosystems and manifest paths.
+3. **Sortable columns:** click any table heading to sort; click again to reverse. Numeric values sort numerically; version constraints sort as text when nonnumeric. Refreshing a table restores its default order.
+4. **Completion progress:** the workspace sidebar shows Done/total tasks, including custom tasks. Dismissed tasks remain in the denominator. This records manual planning progress, not build success.
+5. **Task priorities:** Low, Normal, High and Urgent are saved with notes and shown as sortable backlog columns.
+6. **Due dates:** optional, validated YYYY-MM-DD calendar dates appear in the backlog and exports. Dates do not create reminders or background activity.
+7. **Custom repair tasks:** Planning & history → Add custom task records a title and acceptance criteria. These are labeled Manual/Custom, persist across rescans and can be dismissed using the existing task states.
+8. **Task change history:** select a task, then Planning & history → Task history. Each save records state, notes, priority, due date and UTC time. The newest 100 saves are displayed; older events remain in the workspace. History starts with this version.
+9. **Scan snapshots:** the latest 20 static scans per project are retained. Existing projects gain their previous saved scan during automatic additive migration.
+10. **Finding differences:** select exactly two scan snapshots to see added, removed, evidence-changed and unchanged findings. Comparison uses stable IDs and inspection fields. Removed findings may reflect exclusions, parsing changes or incomplete scans; they do not prove a repair. Snapshots do not contain historical task states.
+11. **Workspace backups:** Planning & history → Back up workspace creates a new SQLite file using SQLite's consistent backup API and checks its integrity. Existing files are refused. To restore, close GitRevival, preserve the current workspace separately, then copy the backup to `.local/workspace.sqlite3`. Backups include local paths, notes and cached GitHub metadata; keep them private.
+12. **CSV backlog exports:** Export report now offers CSV with states, priorities, dates, evidence and notes. Formula-like cells receive an apostrophe prefix for spreadsheet safety. Markdown/JSON also include priority and due dates.
+13. **Headless inspection:** run the bounded static scanner without importing Tk, opening the workspace or contacting GitHub:
+
+    ```powershell
+    python -m gitrevival.cli inspect "C:\path\to\repository" --output scan.json
+    ```
+
+14. **Headless report comparison:** compare two GitRevival JSON reports (20 MB input limit each):
+
+    ```powershell
+    python -m gitrevival.cli compare before.json after.json --output changes.json
+    ```
+
+    CLI outputs must be new files. Inspection returns 0 on a completed bounded scan (review scope warnings); comparison returns 0 for no finding differences, 1 for differences, and either command returns 2 for errors. These codes do not verify a build.
+15. **Keyboard review:** Ctrl+F focuses backlog search, F5 rescans, F1 shows shortcut help; Ctrl+O and Ctrl+S remain available.
 
 ## Inspection coverage
 

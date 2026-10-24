@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 from .analyzer import inspect
+from .planning import Planning, sort_tree
 from .store import Store, STATES, restore, export_report
 
 BG = '#101820'
@@ -63,6 +64,10 @@ class App(tk.Tk):
                                    font=('Segoe UI',11), relief='flat', borderwidth=0, exportselection=False, width=25)
         self.projects.pack(fill='both', expand=True, padx=(0,14))
         self.projects.bind('<<ListboxSelect>>', self.choose_project)
+        self.progress = ttk.Progressbar(sidebar, maximum=100)
+        self.progress.pack(fill='x', padx=(0,14), pady=6)
+        self.progress_text = ttk.Label(sidebar, text='No project loaded', style='Muted.TLabel', wraplength=220)
+        self.progress_text.pack(anchor='w')
         ttk.Label(sidebar, text='Local inspection\nNo repository code is executed.\n\nNotes and task states are saved\nin this app’s .local folder.',
                   style='Muted.TLabel', justify='left').pack(anchor='w', pady=18)
         main = ttk.Frame(body)
@@ -92,7 +97,8 @@ class App(tk.Tk):
         filters.pack(fill='x', pady=(0,10))
         ttk.Label(filters, text='Search').pack(side='left')
         self.search = tk.StringVar()
-        ttk.Entry(filters, textvariable=self.search, width=29).pack(side='left', padx=8)
+        self.search_entry = ttk.Entry(filters, textvariable=self.search, width=22)
+        self.search_entry.pack(side='left', padx=8)
         self.search.trace_add('write', lambda *_: self.render_findings())
         self.filter_state = tk.StringVar(value='All states')
         box = ttk.Combobox(filters, textvariable=self.filter_state, values=('All states',)+STATES, state='readonly', width=15)
@@ -102,11 +108,15 @@ class App(tk.Tk):
         self.category_box = ttk.Combobox(filters, textvariable=self.filter_category, values=('All categories',), state='readonly', width=16)
         self.category_box.pack(side='left')
         self.category_box.bind('<<ComboboxSelected>>', lambda e: self.render_findings())
+        self.filter_severity = tk.StringVar(value='All severities')
+        severity = ttk.Combobox(filters, textvariable=self.filter_severity, values=('All severities','Review','Info'), state='readonly', width=14)
+        severity.pack(side='left', padx=6)
+        severity.bind('<<ComboboxSelected>>', lambda e:self.render_findings())
         split = ttk.Panedwindow(self.findings_tab, orient='vertical')
         split.pack(fill='both', expand=True)
         listframe = ttk.Frame(split)
         split.add(listframe, weight=3)
-        self.findings = self.make_tree(listframe, ('status','category','title'), ('Task state','Area','Finding'), (115,120,540))
+        self.findings = self.make_tree(listframe, ('status','category','title','priority','due'), ('Task state','Area','Finding','Priority','Due'), (115,120,400,85,100))
         self.findings.bind('<<TreeviewSelect>>', self.show_finding)
         detail = ttk.Frame(split, padding=(0,12,0,0))
         split.add(detail, weight=2)
@@ -119,6 +129,17 @@ class App(tk.Tk):
         state_box = ttk.Combobox(editrow, textvariable=self.status_var, values=STATES, state='readonly', width=15)
         state_box.pack(side='left', padx=8)
         state_box.bind('<<ComboboxSelected>>', lambda e: self.notes.edit_modified(True))
+        metadata_row = ttk.Frame(detail)
+        metadata_row.pack(fill='x', pady=4)
+        ttk.Label(metadata_row, text='Priority').pack(side='left')
+        self.priority_var = tk.StringVar(value='Normal')
+        priority = ttk.Combobox(metadata_row, textvariable=self.priority_var, values=('Low','Normal','High','Urgent'), state='readonly', width=8)
+        priority.pack(side='left', padx=4)
+        priority.bind('<<ComboboxSelected>>', lambda e:self.notes.edit_modified(True))
+        ttk.Label(metadata_row, text='Due YYYY-MM-DD').pack(side='left')
+        self.due_var = tk.StringVar()
+        ttk.Entry(metadata_row, textvariable=self.due_var, width=12).pack(side='left', padx=4)
+        self.due_var.trace_add('write', lambda *_:self.notes.edit_modified(True))
         ttk.Button(editrow, text='Save task & notes', command=self.save_task).pack(side='right')
         ttk.Label(detail, text='Notes / build commands / validation evidence', style='Muted.TLabel').pack(anchor='w')
         self.notes = self.textbox(detail, height=3, editable=True)
@@ -133,24 +154,45 @@ class App(tk.Tk):
         self.canvas = tk.Canvas(self.map_tab, bg=BG, highlightthickness=0)
         self.canvas.pack(fill='both', expand=True)
         self.canvas.bind('<Configure>', lambda e: self.draw_map())
+        dependency_bar = ttk.Frame(self.deps_tab); dependency_bar.pack(fill='x')
+        ttk.Label(dependency_bar, text='Search dependencies').pack(side='left')
+        self.dependency_search = tk.StringVar()
+        ttk.Entry(dependency_bar, textvariable=self.dependency_search).pack(side='left', fill='x', expand=True, padx=8)
+        self.dependency_search.trace_add('write', lambda *_:self.render_dependencies())
         self.dependencies = self.make_tree(self.deps_tab, ('name','version','eco','file'), ('Dependency','Declared version / constraint','Ecosystem','Manifest'), (220,230,130,300))
         self.scope = self.textbox(self.scope_tab)
         from .discovery import Discovery
         self.discovery = Discovery(self.tabs,self)
         self.tabs.add(self.discovery,text='Discover & GitHub')
+        self.planning = Planning(self.tabs,self)
+        self.tabs.add(self.planning,text='Planning & history')
         self.footer_var = tk.StringVar(value='Local inspection • Optional GitHub checks in Discover & GitHub • Build status unverified')
         ttk.Label(self, textvariable=self.footer_var, style='Muted.TLabel', padding=(24,12)).pack(fill='x')
         self.refresh_projects()
         self.after(100, self.poll)
         self.bind('<Control-o>', lambda e: self.open_repo())
         self.bind('<Control-s>', lambda e: self.save_task())
+        self.bind('<Control-f>', self.focus_search)
+        self.bind('<F5>', lambda e:self.rescan())
+        self.bind('<F1>', self.shortcut_help)
+
+    def focus_search(self, event=None):
+        if self.discard_guard():
+            self.tabs.select(self.findings_tab)
+            self.search_entry.focus_set()
+            self.search_entry.selection_range(0,'end')
+        return 'break'
+
+    def shortcut_help(self, event=None):
+        messagebox.showinfo('Keyboard shortcuts', 'Ctrl+O: open repository\nCtrl+S: save selected task\nCtrl+F: search repair backlog\nF5: rescan current project\nF1: this help\n\nClick a table heading to sort; click again to reverse.', parent=self)
+        return 'break'
 
     def make_tree(self, parent, columns, labels, widths):
         frame = ttk.Frame(parent)
         frame.pack(fill='both', expand=True)
         tree = ttk.Treeview(frame, columns=columns, show='headings', selectmode='browse')
         for col,label,width in zip(columns,labels,widths):
-            tree.heading(col, text=label)
+            tree.heading(col, text=label, command=lambda column=col:sort_tree(tree,column))
             tree.column(col, width=width, minwidth=70)
         scroll = ttk.Scrollbar(frame, orient='vertical', command=tree.yview)
         horizontal = ttk.Scrollbar(frame, orient='horizontal', command=tree.xview)
@@ -247,6 +289,8 @@ class App(tk.Tk):
             self.load(restore(json.loads(self.project_rows[selection[0]][2])))
 
     def load(self, report):
+        report = restore(report.to_dict())
+        report.findings = [f for f in report.findings if not f.id.startswith('custom-')] + self.store.custom_findings(report.root)
         self.report = report
         self.selected = None
         self.notes.delete('1.0','end')
@@ -257,10 +301,8 @@ class App(tk.Tk):
         self.filter_category.set('All categories')
         self.category_box.configure(values=('All categories',)+tuple(sorted({f.category for f in report.findings})))
         self.render_findings()
-        for item in self.dependencies.get_children():
-            self.dependencies.delete(item)
-        for d in report.dependencies:
-            self.dependencies.insert('', 'end', values=(d.name,d.version,d.ecosystem,d.file))
+        self.render_dependencies()
+        self.planning.refresh()
         scope = (f'SCAN SUMMARY\n\nRepository: {report.root}\nScanned (UTC): {report.scanned_at}\nFiles inventoried: {report.files}\n'
                  f'Ecosystems: {", ".join(report.ecosystems) or "Not identified"}\n\n'
                  'This is a bounded static inspection, not a verified build, vulnerability scan, dependency resolution or legal opinion. '
@@ -277,6 +319,15 @@ class App(tk.Tk):
         self.discovery.project_changed()
         self.footer_var.set(f'{len(report.warnings)} scope warnings • Saved locally • Build status unverified')
 
+    def render_dependencies(self):
+        if not self.report: return
+        self.dependencies.delete(*self.dependencies.get_children())
+        query = self.dependency_search.get().casefold()
+        for d in self.report.dependencies:
+            values = (d.name,d.version,d.ecosystem,d.file)
+            if query in ' '.join(values).casefold():
+                self.dependencies.insert('', 'end', values=values)
+
     def render_findings(self):
         if not self.report:
             return
@@ -292,12 +343,18 @@ class App(tk.Tk):
                 continue
             if self.filter_category.get() != 'All categories' and f.category != self.filter_category.get():
                 continue
+            if self.filter_severity.get() != 'All severities' and f.severity != self.filter_severity.get():
+                continue
             if query not in f'{f.title} {f.file} {f.evidence} {f.category}'.casefold():
                 continue
-            self.findings.insert('', 'end', iid=f.id, values=(state,f.category,f.title))
+            priority,due = self.store.task_meta(self.report.root,f.id)
+            self.findings.insert('', 'end', iid=f.id, values=(state,f.category,f.title,priority,due))
         if previous and self.findings.exists(previous[0]):
             self.findings.selection_set(previous[0])
         r = self.report
+        total = len(r.findings)
+        self.progress['value'] = 100 * completed / total if total else 0
+        self.progress_text.configure(text=f'{completed}/{total} tasks done ({100*completed/total if total else 0:.0f}%)\nManual progress; build unverified')
         self.stats.configure(text=f'{r.files:,} files  ·  {len(r.dependencies)} dependencies  ·  {len(r.findings)} findings  ·  {completed} tasks done')
 
     def show_finding(self, event=None):
@@ -314,6 +371,8 @@ class App(tk.Tk):
                       f'Source: {f.file or "Repository scope"}:{f.line}\n\nEVIDENCE\n{f.evidence}\n\nNEXT STEP\n{f.action}')
         status,notes = self.store.task(self.report.root,f.id)
         self.status_var.set(status)
+        priority,due = self.store.task_meta(self.report.root,f.id)
+        self.priority_var.set(priority); self.due_var.set(due)
         self.notes.delete('1.0','end')
         self.notes.insert('1.0', notes)
         self.notes.edit_modified(False)
@@ -321,7 +380,7 @@ class App(tk.Tk):
     def save_task(self):
         if self.selected and self.report:
             try:
-                self.store.save_task(self.report.root,self.selected.id,self.status_var.get(),self.notes.get('1.0','end-1c'))
+                self.store.save_task(self.report.root,self.selected.id,self.status_var.get(),self.notes.get('1.0','end-1c'),self.priority_var.get(),self.due_var.get())
                 self.notes.edit_modified(False)
                 self.render_findings()
                 self.draw_map()
@@ -368,7 +427,7 @@ class App(tk.Tk):
         if not self.report or not self.discard_guard():
             return
         path = filedialog.asksaveasfilename(title='Export GitRevival report', defaultextension='.md',
-                initialfile=f'{self.report.name}-revival.md', filetypes=[('Markdown report','*.md'),('JSON report','*.json')])
+                initialfile=f'{self.report.name}-revival.md', filetypes=[('Markdown report','*.md'),('JSON report','*.json'),('CSV backlog','*.csv')])
         if path:
             try:
                 export_report(self.report,self.store,path)

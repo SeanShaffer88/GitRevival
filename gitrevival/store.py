@@ -2,6 +2,9 @@
 from pathlib import Path
 import json
 import sqlite3
+from datetime import date, datetime, timezone
+import uuid
+from contextlib import closing
 
 STATES = ('Queued', 'In progress', 'Blocked', 'Done', 'Dismissed')
 
@@ -15,11 +18,20 @@ class Store:
         self.db.execute('CREATE TABLE IF NOT EXISTS candidates (name TEXT PRIMARY KEY, status TEXT NOT NULL, notes TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS github_searches (query TEXT, page INTEGER, payload TEXT NOT NULL, PRIMARY KEY(query,page))')
         self.db.execute('CREATE TABLE IF NOT EXISTS upstreams (root TEXT PRIMARY KEY, name TEXT NOT NULL)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS task_meta (root TEXT, id TEXT, priority TEXT NOT NULL, due TEXT NOT NULL, PRIMARY KEY(root,id))')
+        self.db.execute('CREATE TABLE IF NOT EXISTS task_events (seq INTEGER PRIMARY KEY, root TEXT, id TEXT, at TEXT, status TEXT, notes TEXT, priority TEXT, due TEXT)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS scan_history (seq INTEGER PRIMARY KEY, root TEXT, at TEXT, report TEXT)')
+        self.db.execute('CREATE TABLE IF NOT EXISTS custom_tasks (root TEXT, id TEXT, title TEXT, action TEXT, PRIMARY KEY(root,id))')
+        for root,payload in self.db.execute('SELECT root,report FROM projects p WHERE NOT EXISTS (SELECT 1 FROM scan_history h WHERE h.root=p.root)').fetchall():
+            self.db.execute('INSERT INTO scan_history(root,at,report) VALUES (?,?,?)', (root,json.loads(payload).get('scanned_at','Unknown (migrated)'),payload))
         self.db.commit()
 
     def save_report(self, report):
-        self.db.execute('INSERT OR REPLACE INTO projects VALUES (?,?,?)', (report.root, report.name, json.dumps(report.to_dict())))
-        self.db.commit()
+        payload = json.dumps(report.to_dict())
+        with self.db:
+            self.db.execute('INSERT OR REPLACE INTO projects VALUES (?,?,?)', (report.root, report.name, payload))
+            self.db.execute('INSERT INTO scan_history(root,at,report) VALUES (?,?,?)', (report.root,report.scanned_at,payload))
+            self.db.execute('DELETE FROM scan_history WHERE root=? AND seq NOT IN (SELECT seq FROM scan_history WHERE root=? ORDER BY seq DESC LIMIT 20)', (report.root,report.root))
 
     def projects(self):
         return self.db.execute('SELECT root,name,report FROM projects ORDER BY name COLLATE NOCASE').fetchall()
@@ -27,11 +39,57 @@ class Store:
     def task(self, root, id):
         return self.db.execute('SELECT status,notes FROM tasks WHERE root=? AND id=?', (root,id)).fetchone() or ('Queued','')
 
-    def save_task(self, root, id, status, notes):
+    def save_task(self, root, id, status, notes, priority=None, due=None):
         if status not in STATES:
             raise ValueError('Invalid task status')
-        self.db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?,?,?)', (root,id,status,notes))
-        self.db.commit()
+        old_priority, old_due = self.task_meta(root,id)
+        priority = old_priority if priority is None else priority
+        due = old_due if due is None else due.strip()
+        if priority not in ('Low','Normal','High','Urgent'):
+            raise ValueError('Invalid priority')
+        if due and (date.fromisoformat(due).isoformat() != due):
+            raise ValueError('Use a due date in YYYY-MM-DD format')
+        with self.db:
+            self.db.execute('INSERT OR REPLACE INTO tasks VALUES (?,?,?,?)', (root,id,status,notes))
+            self.db.execute('INSERT OR REPLACE INTO task_meta VALUES (?,?,?,?)', (root,id,priority,due))
+            self.db.execute('INSERT INTO task_events(root,id,at,status,notes,priority,due) VALUES (?,?,?,?,?,?,?)',
+                (root,id,datetime.now(timezone.utc).isoformat(),status,notes,priority,due))
+
+    def task_meta(self, root, id):
+        return self.db.execute('SELECT priority,due FROM task_meta WHERE root=? AND id=?',(root,id)).fetchone() or ('Normal','')
+
+    def task_history(self, root, id):
+        return self.db.execute('SELECT at,status,notes,priority,due FROM task_events WHERE root=? AND id=? ORDER BY seq DESC LIMIT 100',(root,id)).fetchall()
+
+    def scans(self, root):
+        return self.db.execute('SELECT seq,at,report FROM scan_history WHERE root=? ORDER BY seq DESC',(root,)).fetchall()
+
+    def add_custom_task(self, root, title, action):
+        if not title.strip() or len(title) > 200 or len(action) > 20000:
+            raise ValueError('Provide a title (1–200 characters) and at most 20,000 action characters')
+        id = 'custom-' + uuid.uuid4().hex
+        with self.db:
+            self.db.execute('INSERT INTO custom_tasks VALUES (?,?,?,?)',(root,id,title.strip(),action))
+        return id
+
+    def custom_findings(self, root):
+        from .analyzer import Finding
+        return [Finding(id,'Info','Custom',title,'',0,'Manually created task; not an inspection result.',action,'Manual')
+            for id,title,action in self.db.execute('SELECT id,title,action FROM custom_tasks WHERE root=? ORDER BY rowid',(root,))]
+
+    def backup(self, path):
+        target = Path(path)
+        # Exclusive creation keeps an accidental destination selection from destroying another workspace.
+        with target.open('xb'):
+            pass
+        try:
+            with closing(sqlite3.connect(target)) as destination:
+                self.db.backup(destination)
+                if destination.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+                    raise ValueError('Backup integrity check failed')
+        except Exception:
+            target.unlink(missing_ok=True)
+            raise
 
     def close(self):
         self.db.close()
@@ -100,7 +158,11 @@ def export_report(report, store, path):
     data['github_upstream'] = store.github_check(upstream) if upstream else None
     for finding in data['findings']:
         finding['status'], finding['notes'] = store.task(report.root, finding['id'])
-    if str(path).lower().endswith('.json'):
+        finding['priority'], finding['due'] = store.task_meta(report.root, finding['id'])
+    if str(path).lower().endswith('.csv'):
+        from .planning_data import export_csv
+        export_csv(data, path)
+    elif str(path).lower().endswith('.json'):
         Path(path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding='utf-8')
     else:
         lines = [f'# GitRevival — {report.name}', '', f'Scanned (UTC): {report.scanned_at}',
@@ -114,6 +176,6 @@ def export_report(report, store, path):
             lines += ['', '## Saved GitHub evidence (check timestamp for freshness)', '', evidence_text(data['github_upstream'])]
         lines += ['', '## Repair backlog', '']
         for f in data['findings']:
-            lines += [f"### [{f['status']}] {f['title']}", '', f"{f['severity']} · {f['category']} · {f['confidence']}",
+            lines += [f"### [{f['status']}] {f['title']}", '', f"{f['severity']} · {f['category']} · {f['confidence']} · Priority: {f['priority']} · Due: {f['due'] or 'none'}",
                       f"Source: {f['file'] or '(repository scope)'}:{f['line']}", '', 'Evidence:', '', f['evidence'], '', 'Next step: ' + f['action'], '', 'Notes: ' + f['notes'], '']
         Path(path).write_text('\n'.join(lines), encoding='utf-8')
