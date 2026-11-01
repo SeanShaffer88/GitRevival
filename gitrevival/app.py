@@ -225,6 +225,8 @@ class App(tk.Tk):
         self.due_var.trace_add('write', lambda *_:self.notes.edit_modified(True))
         self.save_button = ttk.Button(editrow, text='Save task & notes', command=self.save_task)
         self.save_button.pack(side='right')
+        self.source_button = ttk.Button(editrow, text='View source', command=self.view_selected_source)
+        self.source_button.pack(side='right', padx=(0, 8))
         ttk.Label(detail, text='Notes / build commands / validation evidence', style='Muted.TLabel').pack(anchor='w')
         self.notes = self.textbox(detail, height=3, editable=True)
         self.notes.edit_modified(False)
@@ -246,6 +248,9 @@ class App(tk.Tk):
         self.dependency_entry.pack(side='left', fill='x', expand=True, padx=8)
         self.dependency_search.trace_add('write', lambda *_:self.render_dependencies())
         self.dependencies = self.make_tree(self.deps_tab, ('name','version','eco','file'), ('Dependency','Declared version / constraint','Ecosystem','Manifest'), (220,230,130,300))
+        ttk.Label(self.deps_tab, text='Internal dependency edges — files in this project importing each other (double-click a row to view the source line)', style='Muted.TLabel').pack(anchor='w', pady=(10, 4))
+        self.edges = self.make_tree(self.deps_tab, ('source','target','kind'), ('Imports from','Imports','Kind'), (340,340,140))
+        self.edges.bind('<Double-1>', self.view_edge_source)
         self.scope = self.textbox(self.scope_tab)
         from .discovery import Discovery
         self.discovery = Discovery(self.tabs,self)
@@ -328,6 +333,8 @@ class App(tk.Tk):
         add_tooltip(self.notes, 'Your notes for the selected task: build commands, results, decisions. Saved on this computer as you type.')
         add_tooltip(self.detail, 'Evidence for the selected finding and the suggested next step.')
         add_tooltip(self.dependencies, 'Dependencies the project declares in files GitRevival can read. Declarations only — nothing was downloaded or checked online.')
+        add_tooltip(self.edges, 'Imports between files inside this project, found by reading import lines. Double-click a row to see the source line. External packages are not shown here.')
+        add_tooltip(self.source_button, 'Open a read-only view of the file behind the selected finding, with the finding line marked. Nothing is edited or run.')
         add_tooltip(self.dependency_entry, 'Type to filter the dependency list by name, version, kind or file.')
         add_tooltip(self.canvas, 'Findings grouped by inspection area. Click an area to filter the repair backlog.')
         add_tooltip(self.scope, 'What the inspection read, what it left out, and the warnings recorded for this scan.')
@@ -543,6 +550,56 @@ class App(tk.Tk):
             values = (d.name,d.version,d.ecosystem,d.file)
             if query in ' '.join(values).casefold():
                 self.dependencies.insert('', 'end', values=values)
+        self.edges.delete(*self.edges.get_children())
+        self._edge_rows = {}
+        for e in self.report.edges:
+            if query and query not in f'{e.source} {e.target}'.casefold():
+                continue
+            iid = self.edges.insert('', 'end', values=(f'{e.source}:{e.line}', e.target, e.kind))
+            self._edge_rows[iid] = (e.source, e.line)
+
+    def view_edge_source(self, event=None):
+        selection = self.edges.selection()
+        if selection and selection[0] in getattr(self, '_edge_rows', {}):
+            source, line = self._edge_rows[selection[0]]
+            self.open_source(source, line)
+
+    def view_selected_source(self):
+        if self.selected and self.selected.file:
+            self.open_source(self.selected.file, self.selected.line)
+        elif self.selected:
+            self.footer_var.set('This finding covers the whole repository; it has no single source file.')
+
+    def open_source(self, relative, line):
+        """Read-only source viewer: shows the file with the target line marked."""
+        if not self.report:
+            return
+        path = Path(self.report.root) / relative
+        try:
+            raw = path.open('rb')
+            with raw:
+                data = raw.read(512_001)
+            if len(data) > 512_000:
+                self.footer_var.set(f'Source view skipped: {relative} is larger than 512 KB.')
+                return
+            text = data.decode('utf-8-sig', errors='replace')
+        except OSError as exc:
+            self.footer_var.set(f'Could not read {relative}: {exc.__class__.__name__}')
+            return
+        window = tk.Toplevel(self)
+        window.title(f'{relative}:{line} — GitRevival source view (read-only)')
+        window.geometry('900x640')
+        viewer = tk.Text(window, wrap='none', font=('Consolas', 10), bg='#101418', fg='#D7DEE8',
+                         insertbackground='#D7DEE8', padx=10, pady=8)
+        viewer.pack(fill='both', expand=True)
+        numbered = '\n'.join(f'{number:>5}  {content}' for number, content in enumerate(text.splitlines(), 1))
+        viewer.insert('1.0', numbered)
+        viewer.tag_config('target', background='#5A1F1F', foreground='#FFFFFF')
+        target = max(1, min(int(line or 1), max(1, len(text.splitlines()))))
+        viewer.tag_add('target', f'{target}.0', f'{target}.end')
+        viewer.see(f'{max(1, target - 6)}.0')
+        viewer.configure(state='disabled')
+        add_tooltip(viewer, 'Read-only view of the file inside the inspected repository. Nothing here can be edited or run.')
 
     def render_findings(self):
         if not self.report:

@@ -82,6 +82,8 @@ def main(argv=None):
     scan.add_argument('repository'); scan.add_argument('--output', required=True)
     diff = commands.add_parser('compare', help='Compare two GitRevival JSON report files')
     diff.add_argument('before'); diff.add_argument('after'); diff.add_argument('--output', required=True)
+    deps = commands.add_parser('deps', help='Inspect a repository and print its internal dependency edges and license-text detections as JSON')
+    deps.add_argument('repository')
     listing = commands.add_parser('projects', help='List projects saved in the workspace as JSON')
     listing.add_argument('--workspace')
     export = commands.add_parser('export', help='Inspect a repository, save the scan to the workspace, and export its report (Markdown/JSON/CSV by file extension)')
@@ -104,6 +106,13 @@ def main(argv=None):
             data = compare_reports(read_report(args.before), read_report(args.after))
             write_json_new_file(data, args.output)
             return int(any(data[k] for k in ('added', 'removed', 'changed')))
+        if args.command == 'deps':
+            report = inspect(args.repository)
+            payload = {'edges': [vars(e) for e in report.edges],
+                       'license_detections': [vars(d) for d in report.license_detections]}
+            json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+            sys.stdout.write('\n')
+            return 0
         store = open_store(args)
         try:
             if args.command == 'projects':

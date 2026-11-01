@@ -1,6 +1,6 @@
 """Bounded, read-only static inspection. Never imports or executes project code."""
 from __future__ import annotations
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import hashlib
 import json
@@ -9,6 +9,7 @@ import re
 import tomllib
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from .licenses import COPYLEFT, declared_matches, detect_license
 
 SKIP = {'.git', '.hg', '.svn', 'node_modules', '.venv', 'venv', '__pycache__',
         'vendor', 'dist', 'build', 'bin', 'obj', '.idea', '.vs', '.local'}
@@ -40,6 +41,20 @@ class Dependency:
     file: str
 
 @dataclass
+class Edge:
+    """One internal import: `source` file imports `target` file at `line`."""
+    source: str
+    target: str
+    kind: str
+    line: int
+
+@dataclass
+class LicenseDetection:
+    file: str
+    spdx: str
+    phrase: str
+
+@dataclass
 class Report:
     root: str
     name: str
@@ -51,6 +66,8 @@ class Report:
     licenses: list[str]
     warnings: list[str]
     manifests: list[str]
+    edges: list[Edge] = field(default_factory=list)
+    license_detections: list[LicenseDetection] = field(default_factory=list)
 
     def to_dict(self):
         return asdict(self)
@@ -86,7 +103,7 @@ def inspect(root: str | Path) -> Report:
             paths.add(rel)
             report.files += 1
             low = name.lower()
-            wanted = (name in MANIFESTS or path.suffix.lower() in {'.csproj', '.vcxproj', '.sln'}
+            wanted = (name in MANIFESTS or path.suffix.lower() in {'.csproj', '.vcxproj', '.sln', '.py', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'}
                       or low.startswith(('license', 'copying', 'readme'))
                       or (rel.startswith('.github/workflows/') and path.suffix in {'.yml', '.yaml'}))
             if not wanted:
@@ -122,11 +139,14 @@ def inspect(root: str | Path) -> Report:
         if ecosystem not in report.ecosystems:
             report.ecosystems.append(ecosystem)
 
+    declared: list[tuple[str, str]] = []
     for rel, text in texts.items():
         name = Path(rel).name
         low = name.lower()
         if low.startswith(('license', 'copying')):
             report.licenses.append(rel)
+            spdx, phrase = detect_license(text)
+            report.license_detections.append(LicenseDetection(rel, spdx, phrase))
             add('License', 'Review license scope and third-party notices', rel,
                 '\n'.join(text.splitlines()[:8]),
                 'Identify the exact license and copyright holders. Check dependency and asset licenses separately; a license file alone does not establish redistribution rights.', 'Info')
@@ -135,6 +155,11 @@ def inspect(root: str | Path) -> Report:
         try:
             if name == 'package.json':
                 obj = json.loads(text)
+                license_value = obj.get('license')
+                if isinstance(license_value, str) and license_value.strip():
+                    declared.append((license_value, rel))
+                elif isinstance(license_value, dict) and license_value.get('type'):
+                    declared.append((str(license_value['type']), rel))
                 for group in ('dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'):
                     for n, v in obj.get(group, {}).items():
                         dep(n, v, 'Node.js', rel)
@@ -154,6 +179,11 @@ def inspect(root: str | Path) -> Report:
                 obj = tomllib.loads(text)
                 if name == 'pyproject.toml':
                     project = obj.get('project', {})
+                    license_value = project.get('license')
+                    if isinstance(license_value, str) and license_value.strip():
+                        declared.append((license_value, rel))
+                    elif isinstance(license_value, dict) and license_value.get('text'):
+                        declared.append((str(license_value['text']), rel))
                     for entry in project.get('dependencies', []):
                         dep(entry, 'declared requirement', 'Python', rel)
                     for n, v in obj.get('tool', {}).get('poetry', {}).get('dependencies', {}).items():
@@ -162,6 +192,9 @@ def inspect(root: str | Path) -> Report:
                         add('Build', 'Verify Python runtime constraint', rel, project['requires-python'],
                             'Select a supported interpreter that satisfies the constraint and validate the build.', 'Info', needle='requires-python')
                 else:
+                    license_value = obj.get('package', {}).get('license')
+                    if isinstance(license_value, str) and license_value.strip():
+                        declared.append((license_value, rel))
                     for group in ('dependencies', 'dev-dependencies', 'build-dependencies'):
                         for n, v in obj.get(group, {}).items():
                             dep(n, json.dumps(v) if isinstance(v, dict) else v, 'Rust', rel)
@@ -224,6 +257,101 @@ def inspect(root: str | Path) -> Report:
         if name == 'setup.py':
             add('Build', 'Review executable Python packaging', rel, 'setup.py is present.',
                 'Inspect setup.py without executing it. Consider declarative packaging after reproducing the original behavior.', 'Info')
+    # Internal dependency edges: static imports between files inside this
+    # project only. Text-level matching; nothing is imported or executed.
+    def resolve_python(module, package_parts):
+        parts = [p for p in module.split('.') if p]
+        for cut in range(len(parts), 0, -1):
+            stem = '/'.join(package_parts + parts[:cut])
+            for candidate in (stem + '.py', stem + '/__init__.py'):
+                if candidate in paths:
+                    return candidate
+        return None
+
+    def resolve_relative(source, reference):
+        folder = source.rsplit('/', 1)[0] if '/' in source else ''
+        joined = '/'.join(part for part in (folder + '/' + reference).split('/') if part not in ('', '.'))
+        segments = []
+        for part in joined.split('/'):
+            if part == '..':
+                if segments:
+                    segments.pop()
+            else:
+                segments.append(part)
+        stem = '/'.join(segments)
+        for candidate in [stem] + [stem + ext for ext in ('.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs')] + [stem + '/index.js', stem + '/index.ts']:
+            if candidate in paths:
+                return candidate
+        return None
+
+    seen_edges: dict[tuple[str, str], Edge] = {}
+    for rel, text in texts.items():
+        suffix = Path(rel).suffix.lower()
+        if suffix == '.py':
+            own_package = rel.rsplit('/', 1)[0].split('/') if '/' in rel else []
+            for number, line in enumerate(text.splitlines(), 1):
+                targets = []
+                plain = re.match(r'\s*import\s+(.+)$', line)
+                from_match = re.match(r'\s*from\s+(\.*)([A-Za-z_][\w.]*)?\s+import\s+(.+)$', line)
+                if from_match:
+                    level = len(from_match.group(1))
+                    module = from_match.group(2) or ''
+                    if level:
+                        base = own_package[:len(own_package) - (level - 1)] if level - 1 <= len(own_package) else []
+                        resolved = resolve_python(module, base) if module else None
+                        if resolved:
+                            targets.append(resolved)
+                        for imported in re.findall(r'[A-Za-z_]\w*', from_match.group(3)):
+                            candidate = resolve_python(f'{module}.{imported}' if module else imported, base)
+                            if candidate:
+                                targets.append(candidate)
+                    else:
+                        resolved = resolve_python(module, [])
+                        if resolved:
+                            targets.append(resolved)
+                        for imported in re.findall(r'[A-Za-z_]\w*', from_match.group(3)):
+                            candidate = resolve_python(f'{module}.{imported}', [])
+                            if candidate:
+                                targets.append(candidate)
+                elif plain:
+                    for token in plain.group(1).split(','):
+                        module = token.strip().split(' ')[0]
+                        if module:
+                            resolved = resolve_python(module, [])
+                            if resolved:
+                                targets.append(resolved)
+                for target in targets:
+                    if target != rel and (rel, target) not in seen_edges:
+                        seen_edges[(rel, target)] = Edge(rel, target, 'python-import', number)
+        elif suffix in {'.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'}:
+            for number, line in enumerate(text.splitlines(), 1):
+                for reference in re.findall(r"(?:from\s+|require\(\s*|import\(\s*)['\"](\.[^'\"]+)['\"]", line):
+                    target = resolve_relative(rel, reference)
+                    if target and target != rel and (rel, target) not in seen_edges:
+                        seen_edges[(rel, target)] = Edge(rel, target, 'script-import', number)
+        if len(seen_edges) >= 2000:
+            break
+    report.edges = sorted(seen_edges.values(), key=lambda e: (e.source, e.target))[:2000]
+    if len(seen_edges) >= 2000:
+        report.warnings.append('Internal dependency edge list stopped at 2,000 edges; the graph is incomplete.')
+
+    # License-text checks: advisories from the fingerprint matches above.
+    for detection in report.license_detections:
+        if detection.spdx == 'Unknown':
+            add('License', 'License text was not recognized', detection.file,
+                '\n'.join(texts.get(detection.file, '').splitlines()[:8]),
+                'Read the full license text and identify it manually. Do not assume terms from the file name; an unrecognized text can be anything, including all-rights-reserved.', 'Review', 'Heuristic')
+        elif detection.spdx in COPYLEFT:
+            add('License', f'Copyleft license terms detected: {detection.spdx}', detection.file,
+                f'License text matches the fingerprint phrase "{detection.phrase}".',
+                'Review the copyleft obligations (source disclosure, same-license distribution) against the intended use before adopting or redistributing. This is a text match, not a legal determination.', 'Info', 'Heuristic')
+    known = [d for d in report.license_detections if d.spdx != 'Unknown']
+    for value, manifest in declared:
+        if known and not any(declared_matches(value, d.spdx) for d in known):
+            add('License', 'Declared license does not match the license text', manifest,
+                f'Declared: {value} ({manifest}); license text detected: {known[0].spdx} ({known[0].file})',
+                'Decide which is authoritative, then correct the manifest or replace the license text deliberately. A mismatch means one of the two is misleading users and tooling.', 'Review', 'Heuristic', needle='license')
+
     if not report.licenses:
         add('License', 'No license file observed', evidence='No LICENSE* or COPYING* file was read within scan scope.',
             action='Check README, source headers and upstream history. Establish permission before redistributing; absence of a file is not a license determination.', severity='Review')
