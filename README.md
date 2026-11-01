@@ -10,7 +10,7 @@ Think of GitRevival as a careful mechanic's inspection for an old car you found 
 
 ## Windows portable download
 
-The [0.6.0 release](https://github.com/SeanShaffer88/GitRevival/releases/tag/v0.6.0) supplies `GitRevival-0.6.0-win-x64.zip` with isolated CPython 3.15.1/Tcl-Tk, validated on Windows Server 2022 and 2025 (see the release's validation report). Extract into a writable folder and run **Start GitRevival.bat**; no installed Python is required. To update, close the app, back up `.local`, then copy that folder into the new app folder. Source ZIPs retain the Python 3.11+ requirement below. Runtime notices and per-file hashes accompany the portable ZIP.
+The [0.8.0 release](https://github.com/SeanShaffer88/GitRevival/releases/tag/v0.8.0) supplies `GitRevival-0.8.0-win-x64.zip` with isolated CPython 3.15.1/Tcl-Tk, validated on Windows Server 2022 and 2025 (see the release's validation report). Extract into a writable folder and run **Start GitRevival.bat**; no installed Python is required. To update, close the app, back up `.local`, then copy that folder into the new app folder. Source ZIPs retain the Python 3.11+ requirement below. Runtime notices and per-file hashes accompany the portable ZIP.
 
 ## Screenshots
 
