@@ -1,7 +1,7 @@
 """Read-only public GitHub API access. No Git execution or credential discovery."""
 from __future__ import annotations
 import configparser
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -201,6 +201,74 @@ def lead_signals(repo, at=None):
     if repo.get('disabled'):
         reasons.append('Disabled on GitHub: availability requires separate investigation')
     return score,reasons
+
+LANGUAGES = {
+    'python': 'Python', 'javascript': 'JavaScript', 'js': 'JavaScript',
+    'typescript': 'TypeScript', 'ts': 'TypeScript', 'rust': 'Rust',
+    'go': 'Go', 'golang': 'Go', 'c++': 'C++', 'cpp': 'C++', 'c#': 'C#',
+    'csharp': 'C#', 'java': 'Java', 'ruby': 'Ruby', 'php': 'PHP',
+    'swift': 'Swift', 'kotlin': 'Kotlin', 'lua': 'Lua',
+}
+
+HUNTS = ('explore', 'loved', 'licensed', 'small')
+
+def build_query(words, hunt='explore', today=None):
+    """Turn plain words into a GitHub repository search query.
+
+    The user never needs search syntax: language words become a language
+    filter, the rest stay keywords, and each hunt adds its own plain-meaning
+    filters (quiet for two years, well starred, small). The 'licensed' hunt
+    filters on the license GitHub reports in the results instead of a query
+    qualifier, because repository search has no any-license qualifier.
+    """
+    if hunt not in HUNTS:
+        raise ValueError(f'Unknown hunt: {hunt}')
+    today = today or datetime.now(timezone.utc).date()
+    language = None
+    keywords = []
+    for token in (words or '').replace(',', ' ').split():
+        match = LANGUAGES.get(token.casefold())
+        if match and language is None:
+            language = match
+        else:
+            keywords.append(token)
+    parts = []
+    if keywords:
+        parts.append(' '.join(keywords))
+    if language:
+        parts.append(f'language:{language}')
+    parts.append('fork:false')
+    parts.append('archived:false')
+    if hunt != 'explore':
+        cutoff = (today - timedelta(days=730)).isoformat()
+        parts.append(f'pushed:<{cutoff}')
+    if hunt == 'loved':
+        parts.append('stars:>=50')
+    if hunt == 'small':
+        parts.append('size:<5000')
+    return ' '.join(parts)
+
+def verdict(repo, at=None):
+    """A plain-words verdict for one repository, with its reasons.
+
+    Built on lead_signals so the verdict and the detailed evidence can never
+    disagree. The label is a research lead, never a judgement of value,
+    safety or permission to reuse.
+    """
+    score, reasons = lead_signals(repo, at=at)
+    if score >= 4:
+        label = 'Strong candidate'
+    elif score >= 2:
+        label = 'Worth a look'
+    else:
+        label = 'Long shot'
+    plain = []
+    for reason in reasons:
+        if len(reason) > 3 and reason[0] == '+' and reason[1].isdigit() and reason[2] == ' ':
+            plain.append(reason[3:].replace('maintenance review lead', 'a sign it may need a new maintainer'))
+        else:
+            plain.append(reason)
+    return label, score, plain
 
 def evidence_text(repo):
     score,reasons = lead_signals(repo)

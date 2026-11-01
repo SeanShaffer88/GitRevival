@@ -19,6 +19,7 @@ Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `
 | Workspace backup (checked, no overwrite) | Yes | Yes (`backup`) | test_planning, test_cli_parity |
 | GitHub search + repository checks | Yes (explicit click) | No — deliberate: the CLI makes no network requests | test_github |
 | Revival shortlist + research notes | Yes | Export only (`shortlist`); editing is GUI-only | test_github, test_cli_parity |
+| Plain-words find with ready-made hunts and verdicts | Yes (0.7.0) | No — discovery needs the network, which the CLI never uses by design |
 | Session restore: geometry, last project/tab, recents | Yes (0.4.0) | n/a | test_catchup |
 | Tooltips on every interactive control | Yes (0.4.0) | n/a | test_catchup |
 | Built-in plain-words guide (Help / F1) | Yes (0.4.0) | n/a | test_catchup |

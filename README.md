@@ -47,6 +47,22 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
 
+## Finding projects to revive (0.7.0)
+
+Discovery is the front door: the header's **Find projects to revive**
+button jumps straight to it. Type plain words — a topic, a language, or
+both, like `photo editor python` — and GitRevival builds the GitHub
+search for you (the built search stays visible and editable below, as
+the advanced search). Ready-made hunts cover the common intents:
+**Loved but abandoned** (well-starred, quiet for two years), **Has a
+licence** (quiet projects where GitHub reports a licence), and **Small
+and finishable** (small, quiet codebases). Every result gets a plain
+verdict — **Strong candidate**, **Worth a look**, or **Long shot** —
+with the reasons in everyday words, both in the results list and at the
+top of the evidence view. Verdicts are research leads built from the
+same signals as the detailed evidence; they never judge value, safety,
+or permission to reuse.
+
 ## Dependency edges, source navigation and license checks (0.6.0)
 
 - **Internal dependency edges.** The scan resolves imports *between files in the same project* — Python `import` / `from` (absolute and relative) and JavaScript/TypeScript relative `import` / `require` — into an edge list shown on the Dependencies tab and included in every report and export. External packages are not edges; unresolved imports are simply not listed. The list is capped at 2,000 edges with a scope warning.
@@ -123,7 +139,7 @@ Reads are limited to selected text files: 15,000 inventoried files, 512 KB per i
 
 ## Discover promising revival candidates
 
-Open **Discover & GitHub** without opening a local repository. Choose a preset and click **Search GitHub**, or edit the GitHub repository search query directly. Presets include niche desktop GUIs, Windows tools, C++ libraries, Python tools and archived projects. The default GUI search looks for descriptions containing `gui`, 10–5,000 stars, no pushes for roughly two years, and non-forks; these are editable research filters, not abandonment claims. Archived repositories remain eligible.
+Open **Discover & GitHub** without opening a local repository. The simple route is the plain-words find and the ready-made hunts at the top (0.7.0). For finer control, choose a preset and click **Search GitHub**, or edit the GitHub repository search query directly. Presets include niche desktop GUIs, Windows tools, C++ libraries, Python tools and archived projects. The default GUI search looks for descriptions containing `gui`, 10–5,000 stars, no pushes for roughly two years, and non-forks; these are editable research filters, not abandonment claims. Archived repositories remain eligible.
 
 Search pages contain up to 25 results. GitHub supplies pages sorted by stars; GitRevival orders each fetched page by its research-priority score. **Previous page** and **Next page** access up to GitHub's first 1,000 matches. Narrow the query for larger searches. Truncated results reported by GitHub are labeled. Search indexing and push dates do not establish maintenance status or whether a project needs revival.
 

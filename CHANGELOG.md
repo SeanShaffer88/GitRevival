@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 — Unreleased
+
+Discovery first: GitRevival's main job — finding abandoned GitHub projects
+that may be worth reviving — is now the front door.
+
+- "Find projects to revive" in the header jumps straight to discovery.
+- Plain-words search: type a topic, a language, or both; GitRevival builds
+  the GitHub search query for you (shown below, still editable as the
+  advanced search).
+- Ready-made hunts: Loved but abandoned, Has a licence, Small and
+  finishable.
+- Every result carries a plain verdict — Strong candidate, Worth a look,
+  or Long shot — with its reasons in everyday words, in the results list
+  and at the top of the evidence view.
+
 ## 0.6.0 — 2026-10-31
 
 - Stage 3 A — dependency edges and source navigation: the inspector now resolves imports between files inside the project (Python absolute/relative/from imports; JavaScript/TypeScript relative imports and requires) into an internal dependency-edge list, capped at 2,000 with a scope warning. The Dependencies tab shows the edges; double-clicking an edge — or the new **View source** button on a finding — opens a read-only source viewer with the exact line marked.
