@@ -1,4 +1,5 @@
 """0.4.0 catch-up: tooltips, WAL + settings, autosave, session restore, help."""
+from contextlib import closing
 import sqlite3
 import tempfile
 import tkinter as tk
@@ -18,7 +19,10 @@ class StoreCatchupTests(unittest.TestCase):
             self.assertEqual(store.get_setting('missing', 'fallback'), 'fallback')
             store.set_setting('geometry', '1200x800+10+10')
             store.close()
-            with sqlite3.connect(path) as raw:
+            # closing() matters on Windows: a sqlite3 connection used as a
+            # plain context manager is not closed, and an open database
+            # file cannot be deleted by the temporary-folder cleanup.
+            with closing(sqlite3.connect(path)) as raw:
                 self.assertEqual(raw.execute('PRAGMA integrity_check').fetchone()[0], 'ok')
             store = Store(path)
             self.assertEqual(store.get_setting('geometry'), '1200x800+10+10')
