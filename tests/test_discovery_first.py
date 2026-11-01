@@ -97,6 +97,7 @@ class DiscoveryFirstGuiTests(unittest.TestCase):
                 app.update()
                 self.assertGreater(panel.find_entry.winfo_width(), 100)
             finally:
+                app.store.close()
                 app.destroy()
 
 if __name__ == '__main__':
