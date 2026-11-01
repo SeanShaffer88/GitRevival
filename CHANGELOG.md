@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0 — Unreleased
+
+- Added headless workspace operations to the command line, sharing the same store operations as the window: `projects` (list saved projects as JSON), `export` (inspect, save the scan, and export a Markdown/JSON/CSV report with saved task states merged in), `backup` (checked workspace backup, existing destinations refused), `scans` (list a project's saved snapshots), `diff-scans` (compare two saved snapshots, with the same 0/1/2 exit-code convention as `compare`), and `shortlist` (export the saved shortlist as Markdown or JSON).
+- The shortlist export itself moved into the shared store module, so the window and the command line produce identical files.
+- All command-line file outputs must still be new files; errors exit with code 2. The command line still opens no window and makes no network requests — GitHub search and checks remain window-only by design.
+- No new third-party dependency, and the inspector still never executes repository code.
+
 ## 0.4.0 — Unreleased
 
 - Added tooltips for every interactive control in the window, in plain words.

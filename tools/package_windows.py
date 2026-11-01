@@ -7,7 +7,7 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = 'GitRevival-0.4.0-win-x64'
+NAME = 'GitRevival-0.5.0-win-x64'
 
 
 def main():
@@ -39,8 +39,8 @@ def main():
     (destination/'python315._pth').write_text('.\nLib\nDLLs\n..\n',encoding='ascii')
     (package/'Start GitRevival.bat').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\nstart "" "%~dp0runtime\\pythonw.exe" -B "%~dp0launch.pyw" %*\r\n')
     (package/'GitRevival CLI.bat').write_bytes(b'@echo off\r\n"%~dp0runtime\\python.exe" -B -m gitrevival.cli %*\r\n')
-    (package/'PORTABLE.txt').write_text('GitRevival 0.4.0 Windows x64 portable\n\nExtract the entire ZIP into a writable folder. Run Start GitRevival.bat.\nNo installed Python is required. Data is saved beside the app in .local/workspace.sqlite3.\nTo upgrade, close the app, back up .local, then copy that folder into this new app folder.\nKeep notes, tokens and backups private. Never replace a live database.\n\nRuntime: CPython 3.15.1 x64 with Tcl/Tk 9.0.4. Interpreter binaries are unmodified.\nThis redistribution omits pip/site-packages, tests, IDLE, developer/import libraries and caches; a ._pth file isolates imports.\nApp source and third-party notices are included. See runtime/LICENSE.txt and licenses/runtime.\nNo GitRevival public Windows publisher trust is claimed. Upstream runtime signatures are retained.\n\nSource: https://github.com/SeanShaffer88/GitRevival\nPython: https://www.python.org/downloads/release/python-3151/\n',encoding='utf-8')
-    identity = {'application':'GitRevival','version':'0.4.0','python':version,
+    (package/'PORTABLE.txt').write_text('GitRevival 0.5.0 Windows x64 portable\n\nExtract the entire ZIP into a writable folder. Run Start GitRevival.bat.\nNo installed Python is required. Data is saved beside the app in .local/workspace.sqlite3.\nTo upgrade, close the app, back up .local, then copy that folder into this new app folder.\nKeep notes, tokens and backups private. Never replace a live database.\n\nRuntime: CPython 3.15.1 x64 with Tcl/Tk 9.0.4. Interpreter binaries are unmodified.\nThis redistribution omits pip/site-packages, tests, IDLE, developer/import libraries and caches; a ._pth file isolates imports.\nApp source and third-party notices are included. See runtime/LICENSE.txt and licenses/runtime.\nNo GitRevival public Windows publisher trust is claimed. Upstream runtime signatures are retained.\n\nSource: https://github.com/SeanShaffer88/GitRevival\nPython: https://www.python.org/downloads/release/python-3151/\n',encoding='utf-8')
+    identity = {'application':'GitRevival','version':'0.5.0','python':version,
         'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
         'runtime_origin':'Existing unmodified CPython 3.15.1 Windows x64 distribution; hashes in SHA256.json',
         'checked_on':'2026-10-23'}

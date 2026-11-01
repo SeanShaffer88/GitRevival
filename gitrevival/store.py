@@ -157,6 +157,20 @@ class Store:
         row = self.db.execute('SELECT name FROM upstreams WHERE root=?',(str(Path(root).resolve()),)).fetchone()
         return row[0] if row else None
 
+def export_shortlist(store, path):
+    """Write the saved shortlist exactly as the GUI export does. Returns the count."""
+    entries = [{'repository': item, 'status': status, 'notes': notes} for item, status, notes in store.candidates()]
+    if str(path).lower().endswith('.json'):
+        text = json.dumps(entries, indent=2, ensure_ascii=False)
+    else:
+        from .github import evidence_text
+        lines = ['# GitRevival — revival candidates', '', 'Saved evidence; see each retrieval timestamp. Priorities are research leads, not feasibility assessments.', '']
+        for entry in entries:
+            lines += ['## ' + entry['repository']['full_name'], '', 'Status: ' + entry['status'], '', evidence_text(entry['repository']), '', 'Research notes:', entry['notes'], '']
+        text = '\n'.join(lines)
+    Path(path).write_text(text, encoding='utf-8')
+    return len(entries)
+
 def restore(data):
     from .analyzer import Report, Finding, Dependency
     data = dict(data)

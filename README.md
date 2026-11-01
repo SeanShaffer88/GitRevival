@@ -6,7 +6,7 @@ A local desktop workbench for bringing old software projects back to life.
 
 Think of GitRevival as a careful mechanic's inspection for an old car you found in a barn. You point it at a folder containing an old software project. It walks around the project, takes notes about what looks worn out or missing, and hands you a checklist — with the reason for every item on it. It never starts the engine: nothing in the project is run. You work through the checklist, tick items off, and keep your notes in the program. It can also scout GitHub for other forgotten projects worth rescuing.
 
-**Version 0.4.0 — catch-up release: tooltips, autosave, session restore and a built-in guide, on top of 0.3.0's planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
+**Version 0.5.0 — headless workspace operations for the command line, on top of 0.4.0's catch-up (tooltips, autosave, session restore, built-in guide) and 0.3.0's planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
 
 ## Windows portable download
 
@@ -34,6 +34,21 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 6. Export Markdown or JSON for working with a coding assistant or preparing a revival plan. Exports include local paths, manifest snippets and notes; review them before sharing.
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
+
+## Headless workspace operations (0.5.0)
+
+Everything in this section runs without opening the window and without any network request, against the same workspace database the window uses (`--workspace PATH` selects a different one; list commands print JSON to standard output; file outputs must be new files; errors exit with code 2):
+
+```powershell
+python -m gitrevival.cli projects                                   # list saved projects
+python -m gitrevival.cli export "C:\path\to\repository" --output report.md   # fresh inspection + report with saved task states
+python -m gitrevival.cli backup --output workspace-backup.sqlite3   # checked backup; an existing file is refused
+python -m gitrevival.cli scans "C:\path\to\repository"              # list the project's saved scan snapshots
+python -m gitrevival.cli diff-scans "C:\path\to\repository" 3 7 --output changes.json  # compare two snapshots (exit 1 = differences)
+python -m gitrevival.cli shortlist --output shortlist.md            # export the saved revival shortlist
+```
+
+Project arguments accept a saved project's folder path or its name. `export` saves the fresh scan into the workspace, exactly as opening it in the window would. Backlog editing, custom tasks and the GitHub discovery actions remain window-only; `docs/PARITY.md` is the exact record of what each surface offers.
 
 ## Catch-up improvements (0.4.0)
 
@@ -140,7 +155,7 @@ Upstream API documentation checked 2026-10-22: [repository search](https://docs.
 - `gitrevival/github.py` — read-only GitHub requests and lead scoring.
 - `gitrevival/discovery.py` — the Discover & GitHub panel and shortlist.
 - `gitrevival/planning.py` / `planning_data.py` — planning, history, snapshot comparison and exports.
-- `gitrevival/app.py` — the main window; `gitrevival/cli.py` — headless inspection and comparison; `gitrevival/tooltips.py` — hover help for controls.
+- `gitrevival/app.py` — the main window; `gitrevival/cli.py` — headless inspection, comparison and workspace operations; `gitrevival/tooltips.py` — hover help for controls.
 - `tests/` — the full test suite; `tools/` — the Windows portable packager and its checker; `demo/old-orbit` — the synthetic sample project.
 
 ## Development
@@ -155,7 +170,6 @@ Architecture: `analyzer.py` performs bounded read-only inspection; `store.py` sa
 
 ## Next useful milestones
 
-- Command-line parity: headless export, backup, snapshot and shortlist operations (see `docs/PARITY.md`).
 - Drag and drop a repository folder onto the window to open it.
 - Optional advisory/license-text checks with dated evidence.
 - Richer dependency edges, baseline comparisons and source-file navigation.
