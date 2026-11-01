@@ -285,3 +285,32 @@ class DiscoverTests(unittest.TestCase):
         opener = Opener([{'total_count': 2, 'items': [self.repo('a/one'), self.repo('b/two')]}, runs_ok, runs_bad])
         result = discover(GitHubClient(opener=opener), 'tool', has_passing_ci=True)
         self.assertEqual([r['full_name'] for r in result['results']], ['a/one'])
+
+class AuditButtonTests(unittest.TestCase):
+    def test_online_audit_button_uses_poll_queue(self):
+        import time
+        import tkinter as tk
+        from gitrevival.app import App
+        import gitrevival.audit as audit_mod
+        with tempfile.TemporaryDirectory() as tmp:
+            root = App(Path(tmp) / 'ws.sqlite3')
+            root.withdraw()
+            try:
+                from gitrevival.analyzer import inspect
+                demo = Path(__file__).resolve().parent.parent / 'demo' / 'old-orbit'
+                root.report = inspect(demo)
+                original = (audit_mod.audit_report, audit_mod.audit_text, audit_mod.namespace_audit, audit_mod.namespace_text)
+                audit_mod.audit_report = lambda report, **kw: {'project': 'demo', 'checked_at': 'now', 'entries': [], 'warnings': []}
+                audit_mod.audit_text = lambda result: 'STUB AUDIT TEXT'
+                audit_mod.namespace_audit = lambda root_path, **kw: []
+                audit_mod.namespace_text = lambda results: ''
+                try:
+                    root.online_audit()
+                    deadline = time.time() + 10
+                    while time.time() < deadline and 'STUB AUDIT TEXT' not in root.scope.get('1.0', 'end-1c'):
+                        root.update(); time.sleep(0.05)
+                    self.assertIn('STUB AUDIT TEXT', root.scope.get('1.0', 'end-1c'))
+                finally:
+                    (audit_mod.audit_report, audit_mod.audit_text, audit_mod.namespace_audit, audit_mod.namespace_text) = original
+            finally:
+                root.store.close(); root.destroy()
