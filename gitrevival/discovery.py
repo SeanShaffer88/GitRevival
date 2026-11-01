@@ -5,7 +5,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import webbrowser
-from .github import GitHubClient, repository_name, local_origin, lead_signals, evidence_text
+from .github import GitHubClient, repository_name, local_origin, lead_signals, evidence_text, build_query, verdict
 from .tooltips import add_tooltip
 
 class Discovery(ttk.Frame):
@@ -30,8 +30,31 @@ class Discovery(ttk.Frame):
             'Python tools':f'language:Python stars:>=25 pushed:<{cutoff} fork:false',
             'Archived projects':'archived:true stars:>=25 fork:false',
         }
+        self.active_filter = None
+        ttk.Label(self,text='Find projects to revive — type what you are into (a topic, a language, or plain words); no search syntax needed.',style='Muted.TLabel',wraplength=870).pack(anchor='w',pady=(0,4))
+        find_row = ttk.Frame(self)
+        find_row.pack(fill='x')
+        self.find_words = tk.StringVar()
+        find_entry = ttk.Entry(find_row,textvariable=self.find_words)
+        find_entry.pack(side='left',fill='x',expand=True)
+        self.find_entry = find_entry
+        add_tooltip(find_entry,'Plain words: a topic (photo editor), a language (python, rust), or both. GitRevival turns them into a GitHub search.')
+        find_entry.bind('<Return>',lambda e:self.find('explore'))
+        find_button = ttk.Button(find_row,text='Find projects',style='Accent.TButton',command=lambda:self.find('explore'))
+        find_button.pack(side='left',padx=(8,0))
+        add_tooltip(find_button,'Search GitHub with your words. Results get a plain verdict: Strong candidate, Worth a look, or Long shot.')
+        ttk.Label(find_row,text='Hunts:').pack(side='left',padx=(12,0))
+        hunt_tips = ('Well-starred projects with no code changes for two years.',
+                     'Quiet projects where GitHub reports a licence, so reuse permission is clearer. Always verify the licence text.',
+                     'Small, quiet projects — a codebase one person could realistically pick up.')
+        for (text,hunt),tip in zip((('Loved but abandoned','loved'),('Has a licence','licensed'),('Small and finishable','small')),hunt_tips):
+            button = ttk.Button(find_row,text=text,command=lambda h=hunt:self.find(h))
+            button.pack(side='left',padx=(6,0))
+            self.network_buttons.append(button)
+            add_tooltip(button,tip)
         row = ttk.Frame(self)
-        row.pack(fill='x')
+        row.pack(fill='x',pady=(6,0))
+        ttk.Label(row,text='Advanced search:').pack(side='left')
         self.preset = tk.StringVar(value='Niche desktop GUIs')
         presets = ttk.Combobox(row,textvariable=self.preset,values=tuple(self.presets),state='readonly',width=18)
         presets.pack(side='left')
@@ -75,12 +98,12 @@ class Discovery(ttk.Frame):
         split.pack(fill='both',expand=True)
         listing = ttk.Frame(split)
         split.add(listing,weight=2)
-        self.tree = app.make_tree(listing,('score','repo','language','stars','push','license','state'),
-                ('Lead /5','Repository','Language','Stars','Last push (UTC)','License ID','State'),(70,240,90,65,120,105,105))
+        self.tree = app.make_tree(listing,('verdict','score','repo','language','stars','push','license','state'),
+                ('Verdict','Lead /5','Repository','Language','Stars','Last push (UTC)','License ID','State'),(120,60,230,85,60,115,100,100))
         self.tree.bind('<<TreeviewSelect>>',self.select)
         bottom = ttk.Frame(split,padding=(0,8,0,0))
         split.add(bottom,weight=3)
-        self.detail = app.textbox(bottom,height=5)
+        self.detail = app.textbox(bottom,height=3)
         app.set_text(self.detail,'Find a candidate, inspect its live evidence, then save it to the shortlist.\nScores prioritize research only; they do not establish value, permissions or repair feasibility.')
         row = ttk.Frame(bottom)
         row.pack(fill='x',pady=5)
@@ -103,7 +126,7 @@ class Discovery(ttk.Frame):
         self.notes.bind('<<Modified>>',self._notes_modified)
         def layout(event):
             if event.height > 260:
-                split.sashpos(0,int(event.height*0.32))
+                split.sashpos(0,int(event.height*0.25))
                 split.unbind('<Configure>')
         split.bind('<Configure>',layout)
         self.after(100,self.poll)
@@ -182,6 +205,16 @@ class Discovery(ttk.Frame):
     def rate_text(rate):
         return f'API {rate.get("resource","unknown")}: {rate.get("remaining","unknown")}/{rate.get("limit","unknown")} requests remain; reset UTC {rate.get("reset","unknown")}'
 
+    def find(self, hunt='explore'):
+        try:
+            query = build_query(self.find_words.get(), hunt)
+        except ValueError as exc:
+            self.info.set(str(exc))
+            return
+        self.active_filter = 'licensed' if hunt == 'licensed' else None
+        self.query.set(query)
+        self.search(1)
+
     def search(self, page=1):
         query = self.query.get().strip() if page == 1 else self.current_query
         if not query:
@@ -197,10 +230,16 @@ class Discovery(ttk.Frame):
         self.current_query = payload['query']
         self.current_page = payload['page']
         self.query.set(payload['query'])
-        self.show_items(payload['items'])
+        items = payload['items']
+        filtered = ''
+        if self.active_filter == 'licensed':
+            kept = [item for item in items if item.get('license') not in (None,'Unknown','NOASSERTION')]
+            filtered = f' • Licence hunt: showing {len(kept)} of {len(items)} results where GitHub reports a licence — verify the text with Check selected'
+            items = kept
+        self.show_items(items)
         prefix = 'CACHED — not refreshed' if cached else 'LIVE search'
         partial = ' • GitHub reports incomplete results' if payload['incomplete_results'] else ''
-        self.info.set(f'{prefix}: {payload["checked_at"]} • Page {payload["page"]} • {payload["total_count"]:,} matches (first 1,000 accessible){partial} • {self.rate_text(payload.get("rate",{}))}')
+        self.info.set(f'{prefix}: {payload["checked_at"]} • Page {payload["page"]} • {payload["total_count"]:,} matches (first 1,000 accessible){partial}{filtered} • {self.rate_text(payload.get("rate",{}))}')
 
     def cached_search(self):
         if not self.guard():
@@ -222,7 +261,7 @@ class Discovery(ttk.Frame):
         self.tree.delete(*self.tree.get_children())
         for key,item in sorted(self.items.items(),key=lambda entry:(-lead_signals(entry[1])[0],-entry[1]['stars'],entry[0])):
             status = self.store.candidate(key)
-            self.tree.insert('','end',iid=key,values=(lead_signals(item)[0],item['full_name'],item['language'],item['stars'],(item.get('pushed_at') or 'Unknown')[:10],item['license'],status[0] if status else 'Unsaved'))
+            self.tree.insert('','end',iid=key,values=(verdict(item)[0],lead_signals(item)[0],item['full_name'],item['language'],item['stars'],(item.get('pushed_at') or 'Unknown')[:10],item['license'],status[0] if status else 'Unsaved'))
 
     def select(self,event=None):
         selection = self.tree.selection()
@@ -234,7 +273,9 @@ class Discovery(ttk.Frame):
             return
         self.selected = self.items[selection[0]]
         self.repo_var.set(self.selected['full_name'])
-        self.app.set_text(self.detail,evidence_text(self.selected))
+        label, score, reasons = verdict(self.selected)
+        header = f'VERDICT: {label} (research lead {score}/5)\n' + '\n'.join('• '+reason for reason in reasons) + '\n\n'
+        self.app.set_text(self.detail,header + evidence_text(self.selected))
         saved = self.store.candidate(self.selected['full_name'])
         self.candidate_state.set(saved[0] if saved else 'Research')
         self.notes.delete('1.0','end')

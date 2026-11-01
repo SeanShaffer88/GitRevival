@@ -53,8 +53,11 @@ workspace. To restore a backup: close GitRevival, keep your current
 .local/workspace.sqlite3 in the app folder.
 
 DISCOVER & GITHUB
-Search GitHub for projects that may be worth reviving, check one for live
-evidence (last activity, latest release, open issues), and save the
+Start with "Find projects to revive": type plain words (a topic, a
+language, or both) or pick a ready-made hunt — Loved but abandoned, Has a
+licence, Small and finishable. Every result gets a plain verdict (Strong
+candidate, Worth a look, or Long shot) with its reasons. Check one for
+live evidence (last activity, latest release, open issues), and save the
 promising ones to your shortlist with research notes. The 0–5 score is a
 research lead only — it does not say a project is valuable, safe, or
 allowed to reuse. These are the only features that use the network, they
@@ -123,6 +126,8 @@ class App(tk.Tk):
         ttk.Label(header, text='  /  Project resurrection workbench', style='Muted.TLabel').pack(side='left', padx=12)
         self.open_button = ttk.Button(header, text='+ Open repository', style='Accent.TButton', command=self.open_repo)
         self.open_button.pack(side='right')
+        self.find_button = ttk.Button(header, text='Find projects to revive', style='Accent.TButton', command=self.show_discovery)
+        self.find_button.pack(side='right', padx=8)
         ttk.Button(header, text='Load demo', command=self.demo).pack(side='right', padx=8)
         ttk.Button(header, text='Help', command=self.show_help).pack(side='right')
 
@@ -279,6 +284,10 @@ class App(tk.Tk):
     def shortcut_help(self, event=None):
         messagebox.showinfo('Keyboard shortcuts', SHORTCUTS_TEXT, parent=self)
         return 'break'
+
+    def show_discovery(self):
+        self.tabs.select(self.discovery)
+        self.discovery.find_entry.focus_set()
 
     def show_help(self, event=None):
         """Open the built-in plain-words guide (also on F1). Works offline."""

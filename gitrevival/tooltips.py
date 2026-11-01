@@ -67,6 +67,7 @@ def add_tooltip(widget, text):
 # buttons built by the Discovery and Planning panels.
 BUTTON_TOOLTIPS = {
     '+ Open repository': 'Open a local repository folder and inspect it. Nothing in the folder is run or changed.',
+    'Find projects to revive': 'Jump to finding abandoned GitHub projects that may be worth reviving.',
     'Load demo': 'Inspect the small sample project included with GitRevival.',
     'Help': 'Open the built-in guide: how to use GitRevival, in plain words. Works offline (F1).',
     'Export report': 'Save the current inspection as a Markdown, JSON or CSV report. Reports include local paths and your notes — check before sharing.',
