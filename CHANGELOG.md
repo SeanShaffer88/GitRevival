@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — Unreleased
+
+- Added tooltips for every interactive control in the window, in plain words.
+- Task notes and candidate research notes now save automatically as you type; the workspace database uses SQLite write-ahead logging for safer sudden stops.
+- The window restores its previous size, position, last project and tab on startup, and the sidebar gained a Recent projects list.
+- Added a built-in plain-words guide (Help button or F1) covering the workflow, planning, backups, discovery, data storage and limits; it works offline.
+- Added project paperwork: `PROJECT_RULES.md` (including the recorded 2026-10-31 decision to keep the Python standard-library stack), `QUALITY.md` and `docs/PARITY.md`.
+- README gained a TL;DR, a troubleshooting section (including the owed real screenshot list) and a project-structure section.
+- No new third-party dependency, no new network behaviour, and the inspector still never executes repository code.
+
 ## 0.3.0 — 2026-10-23
 
 - Added all 15 planning/review improvements documented in README: severity/dependency filters, sorting, progress, priority/due dates, custom tasks, task history, scan snapshots/differences, SQLite backups, CSV exports, headless inspection/comparison and keyboard help.

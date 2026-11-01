@@ -6,6 +6,7 @@ from tkinter import ttk, filedialog, messagebox, simpledialog
 
 
 from .planning_data import compare_reports, delta_text
+from .tooltips import add_tooltip, BUTTON_TOOLTIPS
 
 
 def sort_tree(tree, column, reverse=False):
@@ -27,13 +28,17 @@ class Planning(ttk.Frame):
         row = ttk.Frame(self); row.pack(fill='x')
         for text, command in (('Add custom task', self.add_task), ('Task history', self.task_history),
                               ('Refresh snapshots', self.refresh), ('Back up workspace', self.backup)):
-            ttk.Button(row, text=text, command=command).pack(side='left', padx=(0, 6))
+            button = ttk.Button(row, text=text, command=command)
+            button.pack(side='left', padx=(0, 6))
+            add_tooltip(button, BUTTON_TOOLTIPS[text])
         ttk.Label(self, text='Latest 20 scans per project. Select one for its summary, or two to compare. Task history retains the latest 100 displayed changes.',
                   wraplength=820, style='Muted.TLabel').pack(anchor='w', pady=8)
         self.scans = app.make_tree(self, ('at', 'files', 'findings'), ('Scan time (UTC)', 'Files', 'Findings'), (400, 110, 110))
+        add_tooltip(self.scans, 'Saved scans of the current project, newest first. Select one for its summary, or exactly two to compare what changed.')
         self.scans.configure(selectmode='extended')
         self.scans.bind('<<TreeviewSelect>>', self.show_scans)
         self.detail = app.textbox(self, height=10)
+        add_tooltip(self.detail, 'Summaries and comparisons of the scans you select above.')
         self.records = {}
 
     def refresh(self):

@@ -2,7 +2,11 @@
 
 A local desktop workbench for bringing old software projects back to life.
 
-**Version 0.3.0 — planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
+## TL;DR
+
+Think of GitRevival as a careful mechanic's inspection for an old car you found in a barn. You point it at a folder containing an old software project. It walks around the project, takes notes about what looks worn out or missing, and hands you a checklist — with the reason for every item on it. It never starts the engine: nothing in the project is run. You work through the checklist, tick items off, and keep your notes in the program. It can also scout GitHub for other forgotten projects worth rescuing.
+
+**Version 0.4.0 — catch-up release: tooltips, autosave, session restore and a built-in guide, on top of 0.3.0's planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
 
 ## Windows portable download
 
@@ -25,11 +29,19 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 1. Inspect a repository. Review **Scan scope** for exclusions and warnings.
 2. Browse the **Repair backlog**. Each finding includes evidence, source location, confidence, and a suggested next step.
 3. Use **Revival map** to navigate inspection areas. **Dependencies** lists directly declared dependencies extracted by supported parsers.
-4. Set tasks to Queued, In progress, Blocked, Done or Dismissed. Add build commands, test evidence and decisions to notes; click **Save task & notes** or Ctrl+S.
+4. Set tasks to Queued, In progress, Blocked, Done or Dismissed. Add build commands, test evidence and decisions to notes; notes save on their own as you type, and **Save task & notes** or Ctrl+S saves right away.
 5. Rescan after changes. Unchanged finding IDs retain task state and notes. Previously recorded findings remain in older exports; the current view shows current scan findings.
 6. Export Markdown or JSON for working with a coding assistant or preparing a revival plan. Exports include local paths, manifest snippets and notes; review them before sharing.
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
+
+## Catch-up improvements (0.4.0)
+
+1. **Tooltips everywhere:** every button, list, table and input in the window explains itself in plain words when you rest the pointer on it.
+2. **Autosave:** task notes and candidate research notes save on their own shortly after you stop typing; the workspace database now uses SQLite's write-ahead log, so a sudden stop is far less likely to lose or lock your work. Ctrl+S still saves immediately.
+3. **Pick up where you left off:** the window reopens at its previous size and position, with your last project and tab restored, and a Recent list in the sidebar reopens a recent project in one click.
+4. **Built-in guide:** the **Help** button (or F1) opens a plain-words guide to the whole workflow inside the program. It works offline; the separate shortcut list is unchanged.
+5. **Project paperwork:** `PROJECT_RULES.md`, `QUALITY.md` and `docs/PARITY.md` now record the project's rules, its evidence-based quality scores, and which capabilities the window and the command line each offer.
 
 ## Planning and review improvements (0.3.0)
 
@@ -58,7 +70,7 @@ Projects and notes are stored in `.local/workspace.sqlite3` beside the applicati
     ```
 
     CLI outputs must be new files. Inspection returns 0 on a completed bounded scan (review scope warnings); comparison returns 0 for no finding differences, 1 for differences, and either command returns 2 for errors. These codes do not verify a build.
-15. **Keyboard review:** Ctrl+F focuses backlog search, F5 rescans, F1 shows shortcut help; Ctrl+O and Ctrl+S remain available.
+15. **Keyboard review:** Ctrl+F focuses backlog search, F5 rescans, F1 opens the built-in guide; Ctrl+O and Ctrl+S remain available.
 
 ## Inspection coverage
 
@@ -113,6 +125,24 @@ API data is evidence supplied by GitHub, not a complete audit of upstream health
 
 Upstream API documentation checked 2026-10-22: [repository search](https://docs.github.com/en/rest/search/search#search-repositories), [repository metadata](https://docs.github.com/en/rest/repos/repos#get-a-repository), [rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api). Live public search and all four repository-check request paths were exercised on that date. HTTP uses Python's standard library; no new package dependency was adopted.
 
+## Troubleshooting
+
+- **"GitRevival needs Python 3.11 or newer with Tcl/Tk support" (source version):** install Python from python.org with the Tcl/Tk option, or use the Windows portable download instead, which needs no installed Python.
+- **The window opens but a project will not inspect:** choose a readable local folder (not a single file). The Scan scope tab and the footer explain exclusions and read limits after a successful scan.
+- **GitHub search or check fails with a rate message:** the message shows when the limit resets. Wait for it, use **Load cached search** or your saved shortlist meanwhile, or set `GITREVIVAL_GITHUB_TOKEN` before launching for a higher personal limit. GitRevival never retries on its own.
+- **Notes seem missing after a crash:** reopen the app — it restores your last project, and notes autosave as you type. If the workspace file itself is damaged, restore from a Planning & history backup as described in the built-in guide (Help / F1).
+- **Screenshots:** this README carries no screenshots yet. Captures owed from a real Windows run: main window with a scanned project, the repair backlog with a finding open, the revival map, Discover & GitHub with results, and Planning & history. No placeholder images are used.
+
+## Project structure
+
+- `gitrevival/analyzer.py` — the bounded, read-only inspector.
+- `gitrevival/store.py` — the SQLite workspace: projects, tasks, settings, snapshots, backups.
+- `gitrevival/github.py` — read-only GitHub requests and lead scoring.
+- `gitrevival/discovery.py` — the Discover & GitHub panel and shortlist.
+- `gitrevival/planning.py` / `planning_data.py` — planning, history, snapshot comparison and exports.
+- `gitrevival/app.py` — the main window; `gitrevival/cli.py` — headless inspection and comparison; `gitrevival/tooltips.py` — hover help for controls.
+- `tests/` — the full test suite; `tools/` — the Windows portable packager and its checker; `demo/old-orbit` — the synthetic sample project.
+
 ## Development
 
 ```powershell
@@ -125,17 +155,20 @@ Architecture: `analyzer.py` performs bounded read-only inspection; `store.py` sa
 
 ## Next useful milestones
 
-- Review explicit build-environment profiles and capture build logs in isolation.
+- Command-line parity: headless export, backup, snapshot and shortlist operations (see `docs/PARITY.md`).
+- Drag and drop a repository folder onto the window to open it.
 - Optional advisory/license-text checks with dated evidence.
 - Richer dependency edges, baseline comparisons and source-file navigation.
 - More discovery signals and structured effort estimates validated against real revival work.
-- A packaged Windows executable and CI across supported interpreter versions.
+- Build-environment profiles and build-log capture only if running project code is ever approved as its own decision — the inspector's never-executes rule stands until then.
 
 ## Technology decision (2026-10-22)
 
 Consulted the shared resource catalog's desktop SDK and language sections. Chose Python's standard-library Tkinter/ttk and SQLite: they support a local GUI and persistence without a package installation. Avalonia, Qt and Tauri remain candidates if richer native UI or executable packaging warrants additional dependencies. Confirmed local Tk 9.0.4 availability and checked the Python upstream documentation. No new catalog resource was discovered or added.
 
 Sources: [Tkinter](https://docs.python.org/3/library/tkinter.html), [sqlite3](https://docs.python.org/3/library/sqlite3.html). Python and Tcl/Tk have their own upstream licenses; they are prerequisites and are not bundled in this source distribution.
+
+Update (2026-10-31): the Python standard-library choice was re-audited against the project's current requirements and kept — zero third-party dependencies, a bounded workload, and a working portable bundle outweigh a rewrite. The reasoning and the current quality scores are recorded in `QUALITY.md` and `PROJECT_RULES.md`.
 
 MIT licensed. The demo is an original synthetic fixture and is not a vendored upstream project.
 
