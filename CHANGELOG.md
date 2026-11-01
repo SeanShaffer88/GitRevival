@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 — Unreleased
+## 0.8.0 — 2026-10-31
 
 Slice 1 of the rehabilitation-workbench review: deeper revival evidence.
 
@@ -18,7 +18,7 @@ Slice 1 of the rehabilitation-workbench review: deeper revival evidence.
   vulnerability audit, registry and community tooling, headless
   discovery) with feasibility notes.
 
-## 0.7.0 — 2026-10-31 (merged; release not yet published)
+## 0.7.0 — 2026-10-31 (bundled into the 0.8.0 release, never published separately)
 
 Discovery first: GitRevival's main job — finding abandoned GitHub projects
 that may be worth reviving — is now the front door.
