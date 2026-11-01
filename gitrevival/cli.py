@@ -97,6 +97,20 @@ def main(argv=None):
     snap_diff.add_argument('--output', required=True); snap_diff.add_argument('--workspace')
     shortlist = commands.add_parser('shortlist', help='Export the saved revival shortlist (Markdown or JSON by file extension)')
     shortlist.add_argument('--output', required=True); shortlist.add_argument('--workspace')
+    audit = commands.add_parser('audit', help='Online audit of a local repository: registry state, namespace variants and published advisories for its declared dependencies (read-only network use, only on this command)')
+    audit.add_argument('repository'); audit.add_argument('--json', action='store_true')
+    kickstart = commands.add_parser('kickstart', help='Generate revival draft files (ADOPTERS, OUTREACH, MODERNIZATION, BACKLINK) into an output folder; never overwrites and never touches the repository')
+    kickstart.add_argument('repository'); kickstart.add_argument('--output', required=True); kickstart.add_argument('--workspace')
+    discover_cmd = commands.add_parser('discover', help='Online GitHub discovery with strict filters, one JSON object per line (read-only; uses the network only on this command). Set GITREVIVAL_GITHUB_TOKEN for a higher rate limit.')
+    discover_cmd.add_argument('words', nargs='*', help='Plain words: a topic, a language, or both')
+    discover_cmd.add_argument('--hunt', choices=['explore', 'loved', 'licensed', 'small'], default='explore')
+    discover_cmd.add_argument('--min-stars', type=int)
+    discover_cmd.add_argument('--inactive-months', help='Months since the last push, e.g. 24 or a range like 18-36')
+    discover_cmd.add_argument('--license', dest='license_id', help='SPDX id, e.g. MIT')
+    discover_cmd.add_argument('--lang', help='Language name, e.g. Rust')
+    discover_cmd.add_argument('--has-passing-ci', action='store_true')
+    discover_cmd.add_argument('--limit', type=int, default=30)
+    discover_cmd.add_argument('--json', action='store_true', help='Wrap results in one JSON object instead of NDJSON lines')
     args = parser.parse_args(argv)
     try:
         if args.command == 'inspect':
@@ -106,6 +120,40 @@ def main(argv=None):
             data = compare_reports(read_report(args.before), read_report(args.after))
             write_json_new_file(data, args.output)
             return int(any(data[k] for k in ('added', 'removed', 'changed')))
+        if args.command == 'discover':
+            from .github import GitHubClient, GitHubError, discover as run_discover
+            try:
+                result = run_discover(GitHubClient(), ' '.join(args.words), hunt=args.hunt,
+                                      min_stars=args.min_stars, inactive_months=args.inactive_months,
+                                      license_id=args.license_id, language=args.lang,
+                                      has_passing_ci=args.has_passing_ci, limit=args.limit)
+            except GitHubError as exc:
+                print(f'GitRevival: {exc}', file=sys.stderr)
+                return 2
+            if args.json:
+                json.dump(result, sys.stdout, ensure_ascii=False, indent=2)
+                sys.stdout.write('\n')
+            else:
+                for row in result['results']:
+                    json.dump(row, sys.stdout, ensure_ascii=False)
+                    sys.stdout.write('\n')
+            return 0
+        if args.command == 'audit':
+            from .audit import audit_report, audit_text, namespace_audit, namespace_text, AuditError
+            from .github import GitHubError
+            try:
+                report = inspect(args.repository)
+                result = audit_report(report)
+                namespaces = namespace_audit(args.repository)
+            except (AuditError, GitHubError) as exc:
+                print(f'GitRevival: {exc}', file=sys.stderr)
+                return 2
+            if args.json:
+                json.dump({'audit': result, 'namespaces': namespaces}, sys.stdout, ensure_ascii=False, indent=2)
+                sys.stdout.write('\n')
+            else:
+                print(audit_text(result) + namespace_text(namespaces))
+            return 0
         if args.command == 'deps':
             report = inspect(args.repository)
             payload = {'edges': [vars(e) for e in report.edges],
@@ -152,6 +200,20 @@ def main(argv=None):
             if args.command == 'shortlist':
                 require_new_file(args.output)
                 export_shortlist(store, args.output)
+                return 0
+            if args.command == 'kickstart':
+                from .kickstart import generate_kickstart
+                report = inspect(args.repository)
+                snapshot = None
+                try:
+                    root, _, _ = find_project(store, args.repository)
+                    upstream = store.upstream(root)
+                    if upstream:
+                        snapshot = store.github_check(root, upstream)
+                except ValueError:
+                    snapshot = None
+                names = generate_kickstart(report, snapshot, args.output)
+                print('Wrote drafts: ' + ', '.join(names))
                 return 0
         finally:
             store.close()

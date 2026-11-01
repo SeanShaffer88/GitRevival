@@ -63,6 +63,16 @@ research lead only — it does not say a project is valuable, safe, or
 allowed to reuse. These are the only features that use the network, they
 only ever read, and nothing happens until you click.
 
+ONLINE AUDIT & KICKSTART DRAFTS
+With a project open, "Dependency audit (online)" checks its declared
+dependencies against their package registries and published
+vulnerability records, and reports whether names like the project's
+own package name with -ng or 2 added are still free. Results are leads
+with dates, not a safety verdict. "Kickstart drafts" writes four
+hand-in files — a fork banner (ADOPTERS.md), a letter to the original
+maintainer, a CI modernization checklist, and an issue notice draft —
+into a folder you pick. Nothing is ever posted or pushed for you.
+
 YOUR DATA
 Projects, tasks, notes and saved GitHub evidence live in one file:
 .local/workspace.sqlite3 beside the app. It is plain local data, not
@@ -166,6 +176,10 @@ class App(tk.Tk):
         self.stats.pack(side='left')
         self.export_button = ttk.Button(controls, text='Export report', command=self.export)
         self.export_button.pack(side='right')
+        self.audit_button = ttk.Button(controls, text='Dependency audit (online)', command=self.online_audit)
+        self.audit_button.pack(side='right', padx=8)
+        self.kickstart_button = ttk.Button(controls, text='Kickstart drafts', command=self.kickstart)
+        self.kickstart_button.pack(side='right')
         self.rescan_button = ttk.Button(controls, text='Rescan', command=self.rescan)
         self.rescan_button.pack(side='right', padx=8)
         self.tabs = ttk.Notebook(main)
@@ -710,6 +724,51 @@ class App(tk.Tk):
         self.filter_category.set(group)
         self.render_findings()
         self.tabs.select(self.findings_tab)
+
+    def online_audit(self):
+        if not self.report:
+            self.footer_var.set('Open a local repository first, then run the online dependency audit.')
+            return
+        if getattr(self, '_audit_busy', False):
+            return
+        self._audit_busy = True
+        self.audit_button.configure(state='disabled')
+        self.footer_var.set('Contacting registries and the GitHub advisory database… read-only requests.')
+        report = self.report
+        def work():
+            try:
+                from .audit import audit_report, audit_text, namespace_audit, namespace_text
+                result = audit_report(report)
+                text = audit_text(result) + namespace_text(namespace_audit(report.root))
+                self.after(0, lambda: self._audit_done(text))
+            except Exception as exc:
+                self.after(0, lambda: self._audit_done(f'Online audit failed: {exc}'))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _audit_done(self, text):
+        self._audit_busy = False
+        self.audit_button.configure(state='normal')
+        self.set_text(self.scope, self.scope.get('1.0', 'end-1c') + '\n\n' + text)
+        self.tabs.select(self.scope_tab)
+        self.footer_var.set('Online dependency audit finished. Results are leads with dates, not a safety verdict.')
+
+    def kickstart(self):
+        if not self.report:
+            self.footer_var.set('Open a local repository first, then generate kickstart drafts.')
+            return
+        folder = filedialog.askdirectory(title='Choose an empty folder for the revival drafts')
+        if not folder:
+            return
+        snapshot = None
+        upstream = self.store.upstream(self.report.root)
+        if upstream:
+            snapshot = self.store.github_check(self.report.root, upstream)
+        try:
+            from .kickstart import generate_kickstart
+            names = generate_kickstart(self.report, snapshot, folder)
+            self.footer_var.set('Drafts written: ' + ', '.join(names) + '. Review and adapt them before using any of them.')
+        except (OSError, ValueError) as exc:
+            messagebox.showerror('GitRevival', str(exc))
 
     def export(self):
         if not self.report or not self.discard_guard():
