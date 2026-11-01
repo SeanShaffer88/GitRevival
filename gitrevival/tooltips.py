@@ -70,6 +70,8 @@ BUTTON_TOOLTIPS = {
     'Find projects to revive': 'Jump to finding abandoned GitHub projects that may be worth reviving.',
     'Load demo': 'Inspect the small sample project included with GitRevival.',
     'Help': 'Open the built-in guide: how to use GitRevival, in plain words. Works offline (F1).',
+    'Scan .git data': 'Advanced: read the open project’s .git folder for commits Git no longer points at (amended, rebased or reset-away work). Read-only.',
+    'Recover selected commit…': 'Rebuild the selected dangling commit’s files into a folder you choose. Never writes into the repository and never overwrites an existing file.',
     'Kickstart drafts': 'Generate hand-in drafts for reviving this project: a fork-transition banner (ADOPTERS.md), a maintainer outreach letter, a CI modernization checklist, and an issue backlink notice. Nothing is posted or pushed — you review and use them yourself.',
     'Dependency audit (online)': 'Check this project’s declared dependencies against their package registries and published vulnerability records. Uses the network, read-only, only when clicked.',
     'Export report': 'Save the current inspection as a Markdown, JSON or CSV report. Reports include local paths and your notes — check before sharing.',

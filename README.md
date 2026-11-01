@@ -96,6 +96,7 @@ or permission to reuse.
 3. **Online dependency audit:** the **Dependency audit (online)** button — or `python -m gitrevival.cli audit <repository>` — checks declared dependencies against their package registries and GitHub's advisory database, and reports whether revival names (`-ng`, `2`, `-rs`) are available on the registry.
 4. **Kickstart drafts:** the **Kickstart drafts** button — or `python -m gitrevival.cli kickstart <repository> --output <folder>` — writes an ADOPTERS.md banner, a maintainer outreach letter, a CI modernization checklist and an issue backlink draft into a folder you choose. You review and use them yourself; GitRevival never posts or pushes.
 5. **Headless discovery:** `python -m gitrevival.cli discover audio editor --hunt loved --min-stars 100 --inactive-months 18-36` prints one JSON object per repository (NDJSON), ready for scripts and scheduled runs.
+6. **Git recovery (advanced, 0.10.0):** the last tab inspects the open project's .git data for dangling commits — amended, rebased or reset-away work — with reflog and index state, and can rebuild one chosen commit's files into a folder you pick (never overwriting, never writing into the repository). Headless: `git-scan` and `git-recover`.
 
 ## Headless workspace operations (0.5.0)
 

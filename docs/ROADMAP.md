@@ -50,7 +50,8 @@ the small parts that remain honestly open.
 - **Trademark collision guard.** Registry name availability ships (see
   Namespace Audit). Trademark registers have no free plain-GET API, so
   no trademark claim is made either way.
-- **Git forensics (parked by owner decision, 2026-10-31).** A pure-Python
-  object/reflog/index forensics engine exists locally, unwired and
-  untested, for a possible future advanced tab. Discovery stays the
-  front door.
+- **Git forensics — shipped in 0.10.0** as the clearly separated
+  Git recovery (advanced) tab plus headless `git-scan` / `git-recover`.
+  The parked pure-Python engine was revived, its hand-built format
+  fixtures run green, and recovery keeps its never-overwrite rule.
+  Discovery remains the front door.
