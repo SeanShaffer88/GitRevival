@@ -6,7 +6,7 @@ A local desktop workbench for bringing old software projects back to life.
 
 Think of GitRevival as a careful mechanic's inspection for an old car you found in a barn. You point it at a folder containing an old software project. It walks around the project, takes notes about what looks worn out or missing, and hands you a checklist — with the reason for every item on it. It never starts the engine: nothing in the project is run. You work through the checklist, tick items off, and keep your notes in the program. It can also scout GitHub for other forgotten projects worth rescuing.
 
-**Version 0.5.0 — headless workspace operations for the command line, on top of 0.4.0's catch-up (tooltips, autosave, session restore, built-in guide) and 0.3.0's planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
+**Version 0.6.0 — dependency edges with source navigation, and license-text checks, on top of 0.5.0's headless workspace operations, 0.4.0's catch-up (tooltips, autosave, session restore, built-in guide) and 0.3.0's planning, scan history, backups and headless inspection.** Python 3.11+ with Tcl/Tk is required. No third-party Python packages or connected accounts are required. Tested on Windows with Python 3.15 and Tk 9.0; other platforms are not yet validated.
 
 ## Windows portable download
 
@@ -34,6 +34,13 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 6. Export Markdown or JSON for working with a coding assistant or preparing a revival plan. Exports include local paths, manifest snippets and notes; review them before sharing.
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
+
+## Dependency edges, source navigation and license checks (0.6.0)
+
+- **Internal dependency edges.** The scan resolves imports *between files in the same project* — Python `import` / `from` (absolute and relative) and JavaScript/TypeScript relative `import` / `require` — into an edge list shown on the Dependencies tab and included in every report and export. External packages are not edges; unresolved imports are simply not listed. The list is capped at 2,000 edges with a scope warning.
+- **Source navigation.** Double-click an edge, or select a finding and choose **View source**, to open a read-only viewer of that file inside the inspected project with the exact line marked. Nothing is edited or executed.
+- **License-text checks.** License files are matched by distinctive phrases against MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, GPL-2.0/3.0, LGPL-2.1/3.0, AGPL-3.0, MPL-2.0, ISC and the Unlicense. Advisories flag text that matches nothing known, copyleft terms to review, and any mismatch between the license declared in `package.json` / `pyproject.toml` / `Cargo.toml` and the text actually present. A match is a research lead, never a legal determination.
+- Headless: `python -m gitrevival.cli deps <repository>` prints the edges and license detections as JSON.
 
 ## Headless workspace operations (0.5.0)
 
@@ -171,8 +178,7 @@ Architecture: `analyzer.py` performs bounded read-only inspection; `store.py` sa
 ## Next useful milestones
 
 - Drag and drop a repository folder onto the window to open it.
-- Optional advisory/license-text checks with dated evidence.
-- Richer dependency edges, baseline comparisons and source-file navigation.
+- Baseline comparisons across saved snapshots in the window (snapshot differences are already available headless).
 - More discovery signals and structured effort estimates validated against real revival work.
 - Build-environment profiles and build-log capture only if running project code is ever approved as its own decision — the inspector's never-executes rule stands until then.
 
