@@ -172,10 +172,13 @@ def export_shortlist(store, path):
     return len(entries)
 
 def restore(data):
-    from .analyzer import Report, Finding, Dependency
+    from .analyzer import Report, Finding, Dependency, Edge, LicenseDetection
     data = dict(data)
     data['findings'] = [Finding(**x) for x in data['findings']]
     data['dependencies'] = [Dependency(**x) for x in data['dependencies']]
+    # Workspaces saved before 0.6.0 have no edges or license detections.
+    data['edges'] = [Edge(**x) for x in data.get('edges', [])]
+    data['license_detections'] = [LicenseDetection(**x) for x in data.get('license_detections', [])]
     return Report(**data)
 
 def export_report(report, store, path):
@@ -197,6 +200,13 @@ def export_report(report, store, path):
         lines += [f'- {x}' for x in report.warnings] or ['None reported. Excluded generated/vendor folders and bounded reads still apply.']
         lines += ['', '## Declared dependencies', '']
         lines += [f'- {d.name} — {d.version} ({d.ecosystem}; {d.file})' for d in report.dependencies] or ['None extracted by supported parsers.']
+        lines += ['', '## Internal dependency edges (static imports inside this project)', '']
+        edge_lines = [f'- {e.source}:{e.line} → {e.target} ({e.kind})' for e in report.edges[:200]]
+        if len(report.edges) > 200:
+            edge_lines.append(f'- … and {len(report.edges) - 200} more (see the JSON export for the full list)')
+        lines += edge_lines or ['None resolved by the supported import parsers. Unresolved and external imports are not listed.']
+        lines += ['', '## License text checks', '']
+        lines += [f'- {d.file}: text matches {d.spdx} (fingerprint phrase: "{d.phrase}")' if d.spdx != 'Unknown' else f'- {d.file}: text not recognized — read it manually' for d in report.license_detections] or ['No license file was read within scan scope.']
         if data['github_upstream']:
             from .github import evidence_text
             lines += ['', '## Saved GitHub evidence (check timestamp for freshness)', '', evidence_text(data['github_upstream'])]

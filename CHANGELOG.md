@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0 — Unreleased
+
+- Stage 3 A — dependency edges and source navigation: the inspector now resolves imports between files inside the project (Python absolute/relative/from imports; JavaScript/TypeScript relative imports and requires) into an internal dependency-edge list, capped at 2,000 with a scope warning. The Dependencies tab shows the edges; double-clicking an edge — or the new **View source** button on a finding — opens a read-only source viewer with the exact line marked.
+- Stage 3 B — license-text and advisory checks: license files are matched against phrase fingerprints for MIT, BSD-2/BSD-3, Apache-2.0, GPL/LGPL/AGPL, MPL-2.0, ISC and the Unlicense. New advisories flag license text that matches nothing known, copyleft terms (with the obligations to review), and any mismatch between the license a manifest declares and the license text actually present. All checks are worded as research leads, never legal determinations.
+- Reports, saved snapshots, exports and the new headless `deps` command carry the edges and license detections; workspaces saved by older versions still restore (the new lists default to empty).
+- No new third-party dependency, and the inspector still never executes repository code.
+
 ## 0.5.0 — Unreleased
 
 - Added headless workspace operations to the command line, sharing the same store operations as the window: `projects` (list saved projects as JSON), `export` (inspect, save the scan, and export a Markdown/JSON/CSV report with saved task states merged in), `backup` (checked workspace backup, existing destinations refused), `scans` (list a project's saved snapshots), `diff-scans` (compare two saved snapshots, with the same 0/1/2 exit-code convention as `compare`), and `shortlist` (export the saved shortlist as Markdown or JSON).
