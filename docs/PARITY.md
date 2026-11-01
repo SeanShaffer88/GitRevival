@@ -1,6 +1,6 @@
 # GitRevival — Capability Parity
 
-Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.6.0 Stage 3 slice (2026-10-31).
+Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.9.0 roadmap release (2026-10-31).
 
 | Capability | GUI | CLI | Evidence / test |
 |---|---|---|---|
@@ -17,14 +17,17 @@ Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `
 | Scan snapshots (latest 20) and differences | Yes | Yes (`scans`, `diff-scans`, plus file-based `compare`) | test_planning, test_cli_parity |
 | Export report (Markdown / JSON / CSV) | Yes | Yes (`export`, fresh inspection + saved task states) | test_workbench, test_planning, test_cli_parity |
 | Workspace backup (checked, no overwrite) | Yes | Yes (`backup`) | test_planning, test_cli_parity |
-| GitHub search + repository checks | Yes (explicit click) | No — deliberate: the CLI makes no network requests | test_github |
+| GitHub search + repository checks | Yes (explicit click) | Search yes (`discover`, 0.9.0); checks GUI-only | test_github, test_slice1 |
 | Revival shortlist + research notes | Yes | Export only (`shortlist`); editing is GUI-only | test_github, test_cli_parity |
-| Plain-words find with ready-made hunts and verdicts | Yes (0.7.0) | No — discovery needs the network, which the CLI never uses by design |
-| Revival potential evidence (unmet demand, last CI state, living forks) | Yes (0.8.0, part of Check) | No — network by design, like all discovery |
+| Plain-words find with ready-made hunts and verdicts | Yes (0.7.0) | Yes (`discover`, 0.9.0) with strict filters and NDJSON output |
+| Revival potential evidence (unmet demand, last CI state, living forks, PR graveyard, contributor outreach) | Yes (0.8.0/0.9.0, part of Check) | No — Check is GUI-only; `discover` covers search |
+| Maintainability profile + funding signals in the scan | Yes (backlog findings, 0.9.0) | Yes (in `inspect` output) | test_slice1 |
+| Online dependency audit (registries, advisories, namespaces) | Yes (button, 0.9.0) | Yes (`audit`) | test_slice1 |
+| Kickstart draft generation | Yes (button, 0.9.0) | Yes (`kickstart`) | test_slice1 |
 | Session restore: geometry, last project/tab, recents | Yes (0.4.0) | n/a | test_catchup |
 | Tooltips on every interactive control | Yes (0.4.0) | n/a | test_catchup |
 | Built-in plain-words guide (Help / F1) | Yes (0.4.0) | n/a | test_catchup |
 
 ## Parity plan
 
-The 0.5.0 slice closed the planned gap: report export, workspace backup, snapshot listing/differences, project listing and shortlist export are all headless, dispatching the same store operations the GUI uses (the shortlist export itself moved into the store module so both surfaces produce identical files). What remains window-only, honestly: backlog browsing/editing, custom tasks, task history, and the GitHub discovery actions. The GitHub gap is deliberate — the command line makes no network requests, and changing that is its own decision, not a parity fix. Any future backlog/task CLI operations should likewise dispatch the store operations, not re-implement them.
+The 0.5.0 slice closed the planned gap: report export, workspace backup, snapshot listing/differences, project listing and shortlist export are all headless, dispatching the same store operations the GUI uses (the shortlist export itself moved into the store module so both surfaces produce identical files). What remains window-only, honestly: backlog browsing/editing, custom tasks, task history, and the GitHub repository Check action. The GitHub gap closed by owner decision in 0.9.0: `audit` and `discover` are explicit online commands (invoked, never background), while every other CLI command remains network-free. Any future backlog/task CLI operations should likewise dispatch the store operations, not re-implement them.
