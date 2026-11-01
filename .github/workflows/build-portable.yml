@@ -26,18 +26,20 @@ jobs:
       - name: Create release assets (portable ZIP, source ZIP, SHA256SUMS)
         shell: pwsh
         run: |
-          Compress-Archive -Path candidate/GitRevival-0.8.0-win-x64 -DestinationPath GitRevival-0.8.0-win-x64.zip
-          git archive --format=zip --output=GitRevival-0.8.0-source.zip HEAD
-          $lines = foreach ($name in 'GitRevival-0.8.0-win-x64.zip','GitRevival-0.8.0-source.zip') {
+          $folder = (Get-ChildItem candidate -Directory).Name
+          $base = $folder -replace '-win-x64$',''
+          Compress-Archive -Path "candidate/$folder" -DestinationPath "$folder.zip"
+          git archive --format=zip --output="$base-source.zip" HEAD
+          $lines = foreach ($name in "$folder.zip","$base-source.zip") {
             $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
             "$hash  $name"
           }
-          $lines | Set-Content -Encoding ascii GitRevival-0.8.0-SHA256SUMS.txt
-          Get-Content GitRevival-0.8.0-SHA256SUMS.txt
+          $lines | Set-Content -Encoding ascii "$base-SHA256SUMS.txt"
+          Get-Content "$base-SHA256SUMS.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: release-assets
           path: |
-            GitRevival-0.8.0-win-x64.zip
-            GitRevival-0.8.0-source.zip
-            GitRevival-0.8.0-SHA256SUMS.txt
+            GitRevival-*-win-x64.zip
+            GitRevival-*-source.zip
+            GitRevival-*-SHA256SUMS.txt
