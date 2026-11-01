@@ -1,13 +1,13 @@
 # Changelog
 
-## 0.10.0
+## 0.10.0 — 2026-11-01
 
 - **Git recovery (advanced) tab:** a clearly separated forensic view of the open project's .git data — dangling commits (amended, rebased or reset-away work), reflog entries, and index state including partial recovery of a damaged index. Scanning is read-only; one explicit action rebuilds a chosen commit's files into a folder you pick, atomically and never overwriting anything already there.
 - **Headless forensics:** `gitrevival git-scan <repository>` prints the forensic report as JSON; `gitrevival git-recover <repository> <commit> --output <folder>` rebuilds a commit's files under the same never-overwrite rule.
 - The pure-Python object engine reads loose objects and packfiles (including delta chains), parses refs, reflogs and index versions 2–4, and computes reachability from refs, reflogs and the index — no git program required, and nothing in the repository is ever modified.
 - Fix: the online dependency audit's background thread now reports through the same queue-and-poll pattern as the rest of the window, instead of calling into the UI from the worker thread.
 
-## 0.9.0
+## 0.9.0 — 2026-11-01 (bundled into the 0.10.0 release, never published separately)
 
 The rehabilitation workbench release — the recorded roadmap, built:
 
