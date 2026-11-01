@@ -1,6 +1,6 @@
 # GitRevival — Capability Parity
 
-Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.9.0 roadmap release (2026-10-31).
+Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.10.0 forensics release (2026-11-01).
 
 | Capability | GUI | CLI | Evidence / test |
 |---|---|---|---|
@@ -24,6 +24,7 @@ Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `
 | Maintainability profile + funding signals in the scan | Yes (backlog findings, 0.9.0) | Yes (in `inspect` output) | test_slice1 |
 | Online dependency audit (registries, advisories, namespaces) | Yes (button, 0.9.0) | Yes (`audit`) | test_slice1 |
 | Kickstart draft generation | Yes (button, 0.9.0) | Yes (`kickstart`) | test_slice1 |
+| Git forensics: dangling-object scan + commit recovery | Yes (Git recovery tab, 0.10.0) | Yes (`git-scan`, `git-recover`) | test_gitforensics |
 | Session restore: geometry, last project/tab, recents | Yes (0.4.0) | n/a | test_catchup |
 | Tooltips on every interactive control | Yes (0.4.0) | n/a | test_catchup |
 | Built-in plain-words guide (Help / F1) | Yes (0.4.0) | n/a | test_catchup |
