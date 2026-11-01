@@ -111,6 +111,10 @@ def main(argv=None):
     discover_cmd.add_argument('--has-passing-ci', action='store_true')
     discover_cmd.add_argument('--limit', type=int, default=30)
     discover_cmd.add_argument('--json', action='store_true', help='Wrap results in one JSON object instead of NDJSON lines')
+    git_scan = commands.add_parser('git-scan', help='Advanced: forensic scan of a repository’s .git data — dangling commits, reflog and index state as JSON (read-only)')
+    git_scan.add_argument('repository')
+    git_recover = commands.add_parser('git-recover', help='Advanced: rebuild one commit’s files into an output folder; never overwrites existing files')
+    git_recover.add_argument('repository'); git_recover.add_argument('commit'); git_recover.add_argument('--output', required=True)
     args = parser.parse_args(argv)
     try:
         if args.command == 'inspect':
@@ -120,6 +124,25 @@ def main(argv=None):
             data = compare_reports(read_report(args.before), read_report(args.after))
             write_json_new_file(data, args.output)
             return int(any(data[k] for k in ('added', 'removed', 'changed')))
+        if args.command == 'git-scan':
+            from dataclasses import asdict
+            from .gitobjects import scan_git
+            result = scan_git(args.repository)
+            if not result.present:
+                raise ValueError('No .git data found at that path. Choose a repository folder (or its .git folder).')
+            json.dump(asdict(result), sys.stdout, ensure_ascii=False, indent=2)
+            sys.stdout.write('\n')
+            return 0
+        if args.command == 'git-recover':
+            from .gitobjects import GitError, recover_commit
+            try:
+                summary = recover_commit(args.repository, args.commit, args.output)
+            except GitError as exc:
+                print(f'GitRevival: {exc}', file=sys.stderr)
+                return 2
+            json.dump(summary, sys.stdout, ensure_ascii=False, indent=2)
+            sys.stdout.write('\n')
+            return 0
         if args.command == 'discover':
             from .github import GitHubClient, GitHubError, discover as run_discover
             try:

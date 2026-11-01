@@ -80,6 +80,13 @@ encrypted — keep the app folder and any backups private. A token is only
 ever read from the GITREVIVAL_GITHUB_TOKEN environment variable and is
 never saved.
 
+GIT RECOVERY (ADVANCED)
+The last tab looks inside a project's .git folder for commits Git no
+longer points at — amended, rebased or reset-away work that often
+survives until Git cleans up. Scan is read-only; recovery rebuilds one
+chosen commit's files into a folder you pick and never overwrites
+anything already there. Everyday revival work never needs this tab.
+
 KEYBOARD
 Ctrl+O open repository · Ctrl+S save task & notes · Ctrl+F search the
 backlog · F5 rescan · F1 this guide.
@@ -276,6 +283,9 @@ class App(tk.Tk):
         self.tabs.add(self.discovery,text='Discover & GitHub')
         self.planning = Planning(self.tabs,self)
         self.tabs.add(self.planning,text='Planning & history')
+        from .recovery import Recovery
+        self.recovery = Recovery(self.tabs,self)
+        self.tabs.add(self.recovery,text='Git recovery (advanced)')
         self.footer_var = tk.StringVar(value='Local inspection • Optional GitHub checks in Discover & GitHub • Build status unverified')
         ttk.Label(self, textvariable=self.footer_var, style='Muted.TLabel', padding=(24,12)).pack(fill='x')
         self.refresh_projects()
@@ -735,15 +745,25 @@ class App(tk.Tk):
         self.audit_button.configure(state='disabled')
         self.footer_var.set('Contacting registries and the GitHub advisory database… read-only requests.')
         report = self.report
+        self._audit_events = queue.Queue()
+        self.after(100, self._audit_poll)
         def work():
             try:
                 from .audit import audit_report, audit_text, namespace_audit, namespace_text
                 result = audit_report(report)
                 text = audit_text(result) + namespace_text(namespace_audit(report.root))
-                self.after(0, lambda: self._audit_done(text))
+                self._audit_events.put(text)
             except Exception as exc:
-                self.after(0, lambda: self._audit_done(f'Online audit failed: {exc}'))
+                self._audit_events.put(f'Online audit failed: {exc}')
         threading.Thread(target=work, daemon=True).start()
+
+    def _audit_poll(self):
+        try:
+            text = self._audit_events.get_nowait()
+        except queue.Empty:
+            self.after(100, self._audit_poll)
+            return
+        self._audit_done(text)
 
     def _audit_done(self, text):
         self._audit_busy = False
