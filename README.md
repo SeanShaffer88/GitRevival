@@ -10,7 +10,19 @@ Think of GitRevival as a careful mechanic's inspection for an old car you found 
 
 ## Windows portable download
 
-The 0.3.0 release supplies `GitRevival-0.3.0-win-x64.zip` with isolated CPython 3.15.1/Tcl-Tk. Extract into a writable folder and run **Start GitRevival.bat**; no installed Python is required. To update, close the app, back up `.local`, then copy that folder into the new app folder. Source ZIPs retain the Python 3.11+ requirement below. Runtime notices and per-file hashes accompany the portable ZIP.
+The [0.6.0 release](https://github.com/SeanShaffer88/GitRevival/releases/tag/v0.6.0) supplies `GitRevival-0.6.0-win-x64.zip` with isolated CPython 3.15.1/Tcl-Tk, validated on Windows Server 2022 and 2025 (see the release's validation report). Extract into a writable folder and run **Start GitRevival.bat**; no installed Python is required. To update, close the app, back up `.local`, then copy that folder into the new app folder. Source ZIPs retain the Python 3.11+ requirement below. Runtime notices and per-file hashes accompany the portable ZIP.
+
+## Screenshots
+
+Real captures from the 0.6.0 portable build running on Windows:
+
+![GitRevival main window before a project is opened](docs/screenshots/main-window.png)
+
+*The main window on first run — open a repository, load the demo, or pick a recent project.*
+
+![Repair backlog for the bundled old-orbit demo project](docs/screenshots/backlog-old-orbit.png)
+
+*The bundled `old-orbit` demo scanned: 4 files, 3 declared dependencies, 9 findings in the repair backlog.*
 
 ## Start
 
@@ -153,7 +165,7 @@ Upstream API documentation checked 2026-10-22: [repository search](https://docs.
 - **The window opens but a project will not inspect:** choose a readable local folder (not a single file). The Scan scope tab and the footer explain exclusions and read limits after a successful scan.
 - **GitHub search or check fails with a rate message:** the message shows when the limit resets. Wait for it, use **Load cached search** or your saved shortlist meanwhile, or set `GITREVIVAL_GITHUB_TOKEN` before launching for a higher personal limit. GitRevival never retries on its own.
 - **Notes seem missing after a crash:** reopen the app — it restores your last project, and notes autosave as you type. If the workspace file itself is damaged, restore from a Planning & history backup as described in the built-in guide (Help / F1).
-- **Screenshots:** this README carries no screenshots yet. Captures owed from a real Windows run: main window with a scanned project, the repair backlog with a finding open, the revival map, Discover & GitHub with results, and Planning & history. No placeholder images are used.
+- **Screenshots:** the Screenshots section above carries real captures from the 0.6.0 portable build on Windows. Still owed from a real Windows run: the repair backlog with a finding open, the Dependencies tab with internal edges, the revival map, Discover & GitHub with results, and Planning & history. No placeholder images are used.
 
 ## Project structure
 
