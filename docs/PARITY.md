@@ -1,12 +1,15 @@
 # GitRevival — Capability Parity
 
-Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.5.0 CLI parity slice (2026-10-31).
+Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.6.0 Stage 3 slice (2026-10-31).
 
 | Capability | GUI | CLI | Evidence / test |
 |---|---|---|---|
 | Inspect a repository (bounded static scan) | Yes | Yes (`inspect`) | test_workbench, test_planning (headless) |
 | Compare two JSON reports / scan snapshots | Yes (Planning & history) | Yes (`compare`) | test_planning |
 | Repair backlog: filter, search, sort | Yes | No | test_workbench, test_planning (GUI) |
+| Internal dependency edges (in-project imports) | Yes (Dependencies tab) | Yes (`deps`, and in `inspect` output) | test_stage3 |
+| Source navigation (view a file at a finding/import line) | Yes (read-only viewer) | No — a viewer is inherently graphical; the edges and line numbers behind it are in the CLI output | test_stage3 |
+| License-text detection + advisories (unrecognized, copyleft, declared-vs-text mismatch) | Yes (backlog findings) | Yes (`deps`, and in `inspect` output) | test_stage3 |
 | Task state / priority / due date / notes | Yes (autosaves, 0.4.0) | No | test_workbench, test_planning, test_catchup |
 | Custom repair tasks | Yes | No | test_planning |
 | Task change history | Yes | No | test_planning |
