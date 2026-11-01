@@ -11,6 +11,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from .licenses import license_class
+
 MAX_RESPONSE = 2_000_000
 
 class GitHubError(Exception):
@@ -131,6 +133,7 @@ class GitHubClient:
         snapshot.update({'warnings':[], 'release':None, 'commit':None, 'issues':[], 'checked_at':now(), 'checks':{}})
         paths = [('release', '/releases/latest', None), ('commit', '/commits', {'per_page':1}),
                  ('issues', '/issues', {'state':'open','per_page':5,'sort':'updated','direction':'desc'})]
+        stopped = False
         for key,path,params in paths:
             try:
                 result = self.get('/repos/'+name+path,params)
@@ -149,9 +152,65 @@ class GitHubClient:
                     snapshot['checks'][key] = 'Unavailable'
                     snapshot['warnings'].append(f'{key}: {exc}')
                 if exc.status in {401,403,429} or exc.status is None:
+                    stopped = True
                     break
         for key,_,_ in paths:
             snapshot['checks'].setdefault(key,'Not requested after an earlier failure')
+
+        def extra(key, collect):
+            nonlocal stopped
+            if stopped:
+                snapshot['checks'][key] = 'Not requested after an earlier failure'
+                return
+            try:
+                collect()
+                snapshot['checks'][key] = 'Checked'
+            except GitHubError as exc:
+                snapshot['checks'][key] = 'Unavailable'
+                snapshot['warnings'].append(f'{key}: {exc}')
+                if exc.status in {401,403,429} or exc.status is None:
+                    stopped = True
+
+        def demand():
+            since = (datetime.now(timezone.utc)-timedelta(days=730)).date().isoformat()
+            opened = self.get('/search/issues', {'q':f'repo:{name} type:issue state:open','per_page':1})
+            closed = self.get('/search/issues', {'q':f'repo:{name} type:issue state:closed closed:>={since}','per_page':1})
+            snapshot['demand'] = {'open_issues':opened.get('total_count'),
+                                  'closed_issues_24mo':closed.get('total_count'),
+                                  'window_since':since}
+        extra('demand', demand)
+
+        def ci():
+            data = self.get('/repos/'+name+'/actions/runs', {'per_page':1,'status':'completed'})
+            runs = data.get('workflow_runs') or []
+            if runs:
+                run = runs[0]
+                snapshot['ci'] = {k:run.get(k) for k in ('name','conclusion','updated_at','html_url')}
+            else:
+                snapshot['ci'] = None
+        extra('ci', ci)
+
+        def living_forks():
+            data = self.get('/repos/'+name+'/forks', {'sort':'stargazers','per_page':5})
+            upstream_pushed = snapshot.get('pushed_at') or ''
+            base = snapshot.get('default_branch') or 'HEAD'
+            found = []
+            for raw in data[:5]:
+                fork = summarize(raw)
+                entry = {'full_name':fork['full_name'], 'stars':fork['stars'],
+                         'pushed_at':fork['pushed_at'], 'ahead_by':None, 'behind_by':None}
+                if fork['pushed_at'] and upstream_pushed and fork['pushed_at'] > upstream_pushed:
+                    owner = fork['full_name'].split('/')[0]
+                    head = f"{base}...{owner}:{fork.get('default_branch') or base}"
+                    try:
+                        compared = self.get('/repos/'+name+'/compare/'+urllib.parse.quote(head, safe=':./'))
+                        entry['ahead_by'] = compared.get('ahead_by')
+                        entry['behind_by'] = compared.get('behind_by')
+                    except GitHubError:
+                        pass
+                found.append(entry)
+            snapshot['living_forks'] = found
+        extra('forks', living_forks)
         snapshot['rate'] = dict(self.rate)
         return snapshot
 
@@ -169,6 +228,7 @@ def summarize(data):
             'disabled':bool(data.get('disabled')), 'fork':bool(data.get('fork')),
             'parent':parent.get('full_name'), 'pushed_at':data.get('pushed_at'),
             'default_branch':data.get('default_branch'), 'license':license.get('spdx_id') or 'Unknown',
+            'license_class':license_class(license.get('spdx_id') or 'Unknown'),
             'topics':data.get('topics') or [], 'checked_at':now()}
 
 def lead_signals(repo, at=None):
@@ -177,7 +237,8 @@ def lead_signals(repo, at=None):
     score = 0
     if repo.get('license') not in {None,'Unknown','NOASSERTION'}:
         score += 2
-        reasons.append('+2 GitHub identifies a license; verify its text and scope')
+        cls = repo.get('license_class') or license_class(repo.get('license'))
+        reasons.append(f'+2 GitHub identifies a license ({cls.lower()}); verify its text and scope')
     else:
         reasons.append('+0 License permission needs investigation')
     if repo.get('stars',0) >= 25:
@@ -278,7 +339,7 @@ def evidence_text(repo):
              f"Archived: {repo.get('archived')} | Disabled: {repo.get('disabled')} | Fork: {repo.get('fork')}",
              f"Parent: {repo.get('parent') or 'Not provided'} | Default branch: {repo.get('default_branch')}",
              f"Last push: {repo.get('pushed_at') or 'Unknown'} (any ref; not necessarily a code change)",
-             f"GitHub license detection: {repo.get('license')} — compatibility and fork rights unverified",
+             f"GitHub license detection: {repo.get('license')} ({repo.get('license_class') or license_class(repo.get('license'))}) — compatibility and fork rights unverified",
              f"Open issues + pull requests: {repo.get('open_issues_and_prs')}", '',
              f'RESEARCH PRIORITY: {score}/5 (heuristic, not revival feasibility)', *reasons, '']
     if 'checks' in repo:
@@ -287,6 +348,33 @@ def evidence_text(repo):
                   'Default-branch commit sample: '+json.dumps(repo.get('commit'),ensure_ascii=False),
                   'Open issue sample (PRs filtered from first 5 most recently updated open issue/PR entries):']
         lines += [f"#{i['number']} {i['title']} — {i['html_url']}" for i in repo.get('issues',[])]
+        demand = repo.get('demand')
+        if demand:
+            lines += ['', 'UNMET DEMAND (issue counts from GitHub search)',
+                      f"Open issues: {demand.get('open_issues')} | Issues closed in the last 24 months: {demand.get('closed_issues_24mo')}"]
+            opened, closed = demand.get('open_issues') or 0, demand.get('closed_issues_24mo') or 0
+            if opened >= 10 and opened > closed:
+                lines += ['More issues stand open than were closed in two years — a sign people may still be waiting for fixes. A lead, not proof of demand.']
+        if 'ci' in repo:
+            ci = repo.get('ci')
+            lines += ['', 'LAST KNOWN HEALTHY STATE (most recent completed Actions run)']
+            if ci:
+                lines += [f"{ci.get('name')}: {ci.get('conclusion')} at {ci.get('updated_at')} — {ci.get('html_url')}"]
+            else:
+                lines += ['No completed GitHub Actions runs found. The project may use other CI, or none.']
+        forks = repo.get('living_forks')
+        if forks is not None:
+            lines += ['', 'LIVING FORKS (top forks by stars; compared only when the fork pushed more recently than upstream)']
+            ahead = [f for f in forks if (f.get('ahead_by') or 0) > 0]
+            for fork in forks:
+                if fork.get('ahead_by') is not None:
+                    lines += [f"{fork['full_name']}: {fork['ahead_by']} commits ahead, {fork['behind_by']} behind — possible living fork; consider its work before starting over."]
+                else:
+                    lines += [f"{fork['full_name']}: last push {fork.get('pushed_at') or 'unknown'} — no newer work proven."]
+            if not forks:
+                lines += ['No forks returned.']
+            elif ahead:
+                lines += ['A fork ahead of upstream may already be the community continuation — check it before reviving the original.']
         lines += ['Warnings: '+('; '.join(repo.get('warnings',[])) or 'None reported.')]
     else:
         lines += ['Search metadata only. Use Check selected for release, commit and issue samples.']
