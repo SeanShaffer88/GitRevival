@@ -1,6 +1,5 @@
 """Discovery UI, local shortlist and asynchronous GitHub checks."""
 from datetime import datetime, timedelta, timezone
-import json
 import queue
 import threading
 import tkinter as tk
@@ -322,17 +321,9 @@ class Discovery(ttk.Frame):
         path = filedialog.asksaveasfilename(parent=self,title='Export GitRevival shortlist',initialfile='GitRevival-shortlist.md',defaultextension='.md',filetypes=[('Markdown','*.md'),('JSON','*.json')])
         if not path:
             return
-        from pathlib import Path
-        entries = [{'repository':item,'status':status,'notes':notes} for item,status,notes in self.store.candidates()]
+        from .store import export_shortlist
         try:
-            if path.lower().endswith('.json'):
-                text = json.dumps(entries,indent=2,ensure_ascii=False)
-            else:
-                lines = ['# GitRevival — revival candidates','', 'Saved evidence; see each retrieval timestamp. Priorities are research leads, not feasibility assessments.','']
-                for entry in entries:
-                    lines += ['## '+entry['repository']['full_name'], '', 'Status: '+entry['status'], '', evidence_text(entry['repository']), '', 'Research notes:', entry['notes'], '']
-                text = '\n'.join(lines)
-            Path(path).write_text(text,encoding='utf-8')
+            export_shortlist(self.store, path)
             self.info.set('Saved shortlist exported, including evidence timestamps and research notes.')
         except OSError as exc:
             self.info.set('Export failed: '+str(exc))
