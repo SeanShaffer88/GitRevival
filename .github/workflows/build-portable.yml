@@ -1,0 +1,43 @@
+name: Build portable package
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the exact CPython 3.15.1 x64 runtime the packager expects
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://www.python.org/ftp/python/3.15.1/python-3.15.1-amd64.exe -OutFile python-installer.exe
+          Start-Process ./python-installer.exe -ArgumentList '/quiet','InstallAllUsers=0',"TargetDir=$env:RUNNER_TEMP\py3151",'Include_test=0' -Wait
+          & "$env:RUNNER_TEMP\py3151\python.exe" --version
+      - name: Run the full test suite with that runtime
+        shell: pwsh
+        run: |
+          & "$env:RUNNER_TEMP\py3151\python.exe" -m unittest discover -s tests
+      - name: Package the portable build
+        shell: pwsh
+        run: |
+          & "$env:RUNNER_TEMP\py3151\python.exe" tools/package_windows.py --python-root "$env:RUNNER_TEMP\py3151" --output candidate
+      - name: Create release assets (portable ZIP, source ZIP, SHA256SUMS)
+        shell: pwsh
+        run: |
+          Compress-Archive -Path candidate/GitRevival-0.6.0-win-x64 -DestinationPath GitRevival-0.6.0-win-x64.zip
+          git archive --format=zip --output=GitRevival-0.6.0-source.zip HEAD
+          $lines = foreach ($name in 'GitRevival-0.6.0-win-x64.zip','GitRevival-0.6.0-source.zip') {
+            $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name"
+          }
+          $lines | Set-Content -Encoding ascii GitRevival-0.6.0-SHA256SUMS.txt
+          Get-Content GitRevival-0.6.0-SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: |
+            GitRevival-0.6.0-win-x64.zip
+            GitRevival-0.6.0-source.zip
+            GitRevival-0.6.0-SHA256SUMS.txt
