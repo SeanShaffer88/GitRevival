@@ -14,7 +14,7 @@ The [0.10.0 release](https://github.com/SeanShaffer88/GitRevival/releases/tag/v0
 
 ## Screenshots
 
-Real captures from the 0.8.0 portable build running on Windows:
+Real captures from the 0.8.0 and 0.10.0 portable builds running on Windows:
 
 ![GitRevival main window before a project is opened](docs/screenshots/main-window.png)
 
@@ -27,6 +27,10 @@ Real captures from the 0.8.0 portable build running on Windows:
 ![Discover & GitHub with the plain-words find and ready-made hunts](docs/screenshots/discover.png)
 
 *Finding projects to revive: plain words in, a plain verdict on every result out.*
+
+![Scan scope with the online dependency audit results for the old-orbit demo](docs/screenshots/audit.png)
+
+*The online dependency audit (0.9.0) after a run: registry state, advisory checks and the namespace audit for the project's own package names, appended to the scan scope. The demo's example packages are correctly reported as not found on their registry.*
 
 ## Start
 
