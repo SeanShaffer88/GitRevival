@@ -1,6 +1,24 @@
 # Changelog
 
-## 0.7.0 — Unreleased
+## 0.8.0 — Unreleased
+
+Slice 1 of the rehabilitation-workbench review: deeper revival evidence.
+
+- Revival potential evidence in every live Check: unmet demand (open
+  issues vs issues closed in the last 24 months), the last known healthy
+  state (most recent completed GitHub Actions run), and living forks —
+  the top forks by stars, compared ahead/behind when a fork pushed more
+  recently than upstream.
+- License permissiveness labels everywhere a license is reported:
+  Permissive, Weak copyleft, Copyleft, No licence identified.
+- CI bitrot detection extended: more old action versions, any
+  first-generation action, retired runner labels (including
+  ubuntu-20.04, windows-2019, macos-11/12), AppVeyor, and CircleCI 1.0.
+- docs/ROADMAP.md records the deferred feature reviews (PR Graveyard,
+  vulnerability audit, registry and community tooling, headless
+  discovery) with feasibility notes.
+
+## 0.7.0 — 2026-10-31 (merged; release not yet published)
 
 Discovery first: GitRevival's main job — finding abandoned GitHub projects
 that may be worth reviving — is now the front door.
