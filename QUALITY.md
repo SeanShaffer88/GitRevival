@@ -1,6 +1,6 @@
 # GitRevival — Quality Scorecard
 
-Scored from evidence only (code read, tests run, release records), most recently for the 0.6.0 Stage 3 slice on 2026-10-31. Scores are 0–5 per dimension. Anything without evidence is marked Unverified, not scored up.
+Scored from evidence only (code read, tests run, release records), most recently for the 0.9.0 roadmap release on 2026-10-31. Scores are 0–5 per dimension. Anything without evidence is marked Unverified, not scored up.
 
 | Dimension | Score | Evidence |
 |---|---|---|
@@ -16,6 +16,6 @@ Scored from evidence only (code read, tests run, release records), most recently
 | Release discipline | 4 | 0.3.0 portable ZIP was hash- and CI-verified on two Windows versions before publishing. The release shape is a recorded owner waiver of the V2.0 matrix (see PROJECT_RULES.md), not silent drift. |
 | Performance | 3 | Bounded scan design; CLI scan of this repository measures ~0.1 s locally. No large-repository (15,000-file) benchmark exists, so large-repo timing is Unverified. |
 
-**Gate for the 0.6.0 slice (run 2026-10-31, Linux VM, Python 3.12 + Xvfb):** full suite **52/52 passed** (44 previous + 8 new Stage 3 tests), plus a manual GUI smoke check that the edges list renders and the source viewer opens at the marked line. The 0.4.0 and 0.5.0 slices' Windows CI passed on both Python 3.11 and 3.14. Windows runtime behaviour of the app itself remains Unverified until the owner runs it.
+**Gate for the 0.9.0 roadmap release (run 2026-10-31, Linux VM, Python 3.12 + Xvfb):** full suite **75/75 passed** (67 at 0.8.0 + 8 new roadmap tests across test_slice1: graveyard/outreach fixtures, profiler, audit registries/advisories, kickstart, discover filters). Earlier slices' Windows CI passed on both Python 3.11 and 3.14; the 0.9.0 Windows CI is Verified at its pull request. Windows runtime behaviour of the app itself remains Unverified until the owner runs it.
 
 **Known Fail-level items (not hidden):** accessibility evidence (2/5) and the remaining window-only operations listed under Command-line parity. Neither blocks this slice, whose scope is the items it fixes; both stay named in `docs/PARITY.md` and the README milestones.

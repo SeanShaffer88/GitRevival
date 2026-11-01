@@ -89,9 +89,17 @@ or permission to reuse.
 - **License-text checks.** License files are matched by distinctive phrases against MIT, BSD-2-Clause, BSD-3-Clause, Apache-2.0, GPL-2.0/3.0, LGPL-2.1/3.0, AGPL-3.0, MPL-2.0, ISC and the Unlicense. Advisories flag text that matches nothing known, copyleft terms to review, and any mismatch between the license declared in `package.json` / `pyproject.toml` / `Cargo.toml` and the text actually present. A match is a research lead, never a legal determination.
 - Headless: `python -m gitrevival.cli deps <repository>` prints the edges and license detections as JSON.
 
+## Rehabilitation workbench (0.9.0)
+
+1. **PR Graveyard + contributor outreach:** a repository Check also surfaces long-untouched open pull requests that already carry approvals, and names the top non-owner contributors — the people and patches a revival starts from.
+2. **Maintainability profile:** the local scan reports god files, test-harness presence, recorded coverage, documentation depth and funding signals, all from recorded evidence (the suite is never run).
+3. **Online dependency audit:** the **Dependency audit (online)** button — or `python -m gitrevival.cli audit <repository>` — checks declared dependencies against their package registries and GitHub's advisory database, and reports whether revival names (`-ng`, `2`, `-rs`) are available on the registry.
+4. **Kickstart drafts:** the **Kickstart drafts** button — or `python -m gitrevival.cli kickstart <repository> --output <folder>` — writes an ADOPTERS.md banner, a maintainer outreach letter, a CI modernization checklist and an issue backlink draft into a folder you choose. You review and use them yourself; GitRevival never posts or pushes.
+5. **Headless discovery:** `python -m gitrevival.cli discover audio editor --hunt loved --min-stars 100 --inactive-months 18-36` prints one JSON object per repository (NDJSON), ready for scripts and scheduled runs.
+
 ## Headless workspace operations (0.5.0)
 
-Everything in this section runs without opening the window and without any network request, against the same workspace database the window uses (`--workspace PATH` selects a different one; list commands print JSON to standard output; file outputs must be new files; errors exit with code 2):
+Everything in this section runs without opening the window and without any network request, against the same workspace database (the two deliberate exceptions are the online commands `audit` and `discover` described above, which run only when invoked) the window uses (`--workspace PATH` selects a different one; list commands print JSON to standard output; file outputs must be new files; errors exit with code 2):
 
 ```powershell
 python -m gitrevival.cli projects                                   # list saved projects

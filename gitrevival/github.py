@@ -211,6 +211,41 @@ class GitHubClient:
                 found.append(entry)
             snapshot['living_forks'] = found
         extra('forks', living_forks)
+
+        def pr_graveyard():
+            pulls = self.get('/repos/'+name+'/pulls', {'state':'open','sort':'created','direction':'asc','per_page':10})
+            cutoff = datetime.now(timezone.utc)-timedelta(days=180)
+            found = []
+            for pull in pulls[:10]:
+                updated = pull.get('updated_at') or ''
+                try:
+                    stale = datetime.fromisoformat(updated.replace('Z','+00:00')) < cutoff
+                except ValueError:
+                    stale = False
+                if not stale:
+                    continue
+                approvals = 0
+                try:
+                    reviews = self.get(f"/repos/{name}/pulls/{pull['number']}/reviews", {'per_page':30})
+                    approvals = len({r.get('user',{}).get('login') for r in reviews if r.get('state') == 'APPROVED'})
+                except GitHubError:
+                    approvals = 0
+                if approvals:
+                    found.append({'number':pull['number'], 'title':pull.get('title'),
+                                  'updated_at':updated, 'approvals':approvals,
+                                  'html_url':pull.get('html_url')})
+                if len(found) >= 5:
+                    break
+            snapshot['pr_graveyard'] = found
+        extra('pr_graveyard', pr_graveyard)
+
+        def contributors():
+            data = self.get('/repos/'+name+'/contributors', {'per_page':6})
+            owner = name.split('/')[0].casefold()
+            snapshot['top_contributors'] = [
+                {'login':c.get('login'), 'contributions':c.get('contributions')}
+                for c in data if (c.get('login') or '').casefold() != owner][:5]
+        extra('contributors', contributors)
         snapshot['rate'] = dict(self.rate)
         return snapshot
 
@@ -375,6 +410,24 @@ def evidence_text(repo):
                 lines += ['No forks returned.']
             elif ahead:
                 lines += ['A fork ahead of upstream may already be the community continuation — check it before reviving the original.']
+        graveyard = repo.get('pr_graveyard')
+        if graveyard is not None:
+            lines += ['', 'PR GRAVEYARD (open pull requests untouched for 6+ months that already have approvals)']
+            if graveyard:
+                for pull in graveyard:
+                    lines += [f"#{pull['number']} {pull['title']} — {pull['approvals']} approval(s), last updated {pull['updated_at']} — {pull['html_url']}"]
+                lines += ['Ready-looking fixes the maintainer never merged. A revival can start from these — credit the authors.']
+            else:
+                lines += ['None found among the oldest open pull requests.']
+        contributors = repo.get('top_contributors')
+        if contributors is not None:
+            lines += ['', 'CONTRIBUTOR OUTREACH (top contributors other than the owner, by commit count)']
+            if contributors:
+                for person in contributors:
+                    lines += [f"{person['login']} — {person['contributions']} commits"]
+                lines += ['These people know the codebase. They are the natural first invitations to review or co-maintain a revival.']
+            else:
+                lines += ['No other contributors returned.']
         lines += ['Warnings: '+('; '.join(repo.get('warnings',[])) or 'None reported.')]
     else:
         lines += ['Search metadata only. Use Check selected for release, commit and issue samples.']
@@ -384,3 +437,63 @@ def evidence_text(repo):
     if repo.get('discovered_query'):
         lines += ['',f'Discovery query: {repo["discovered_query"]} (page {repo.get("discovered_page")})']
     return '\n'.join(lines)
+
+
+def discover(client, words, hunt='explore', min_stars=None, inactive_months=None,
+             license_id=None, language=None, has_passing_ci=False, limit=30, at=None):
+    """Headless discovery: strict filters on top of the plain-words find.
+
+    Returns the exact GitHub query used and one row per repository with
+    its plain verdict. --has-passing-ci costs one extra request per
+    result (the latest completed Actions run must have succeeded).
+    """
+    at = at or datetime.now(timezone.utc)
+    if language:
+        words = ' '.join(w for w in str(words or '').replace(',', ' ').split()
+                         if w.casefold() not in LANGUAGES)
+    query = build_query(words, hunt)
+    extras = []
+    if min_stars is not None:
+        extras.append(f'stars:>={min_stars}')
+    if language:
+        extras.append('language:' + language)
+    if license_id:
+        extras.append('license:' + license_id)
+    if inactive_months:
+        spec = str(inactive_months)
+        if '-' in spec:
+            low, high = spec.split('-', 1)
+            newer = at - timedelta(days=round(float(high) * 30.4375))
+            older = at - timedelta(days=round(float(low) * 30.4375))
+            extras.append(f'pushed:<{older:%Y-%m-%d}')
+            extras.append(f'pushed:>{newer:%Y-%m-%d}')
+        else:
+            older = at - timedelta(days=round(float(spec) * 30.4375))
+            extras.append(f'pushed:<{older:%Y-%m-%d}')
+    if extras:
+        query = (query + ' ' + ' '.join(extras)).strip()
+    items = []
+    page = 1
+    while len(items) < limit and page <= 4:
+        batch = client.search(query, page)
+        items.extend(batch['items'])
+        if len(batch['items']) < 25:
+            break
+        page += 1
+    rows = []
+    for summary in items[:limit]:
+        label, score, reasons = verdict(summary)
+        row = {'full_name': summary.get('full_name'), 'html_url': summary.get('html_url'),
+               'description': summary.get('description'), 'stars': summary.get('stars'),
+               'language': summary.get('language'), 'license': summary.get('license'),
+               'pushed_at': summary.get('pushed_at'), 'verdict': label, 'score': score, 'reasons': reasons}
+        if has_passing_ci:
+            runs = client.get(f"/repos/{summary['full_name']}/actions/runs",
+                              {'status': 'completed', 'per_page': 1})
+            latest = (runs.get('workflow_runs') or [None])[0]
+            row['ci'] = None if latest is None else {'name': latest.get('name'),
+                        'conclusion': latest.get('conclusion'), 'updated_at': latest.get('updated_at')}
+            if not latest or latest.get('conclusion') != 'success':
+                continue
+        rows.append(row)
+    return {'query': query, 'results': rows}

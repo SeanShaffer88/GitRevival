@@ -70,6 +70,8 @@ BUTTON_TOOLTIPS = {
     'Find projects to revive': 'Jump to finding abandoned GitHub projects that may be worth reviving.',
     'Load demo': 'Inspect the small sample project included with GitRevival.',
     'Help': 'Open the built-in guide: how to use GitRevival, in plain words. Works offline (F1).',
+    'Kickstart drafts': 'Generate hand-in drafts for reviving this project: a fork-transition banner (ADOPTERS.md), a maintainer outreach letter, a CI modernization checklist, and an issue backlink notice. Nothing is posted or pushed — you review and use them yourself.',
+    'Dependency audit (online)': 'Check this project’s declared dependencies against their package registries and published vulnerability records. Uses the network, read-only, only when clicked.',
     'Export report': 'Save the current inspection as a Markdown, JSON or CSV report. Reports include local paths and your notes — check before sharing.',
     'Rescan': 'Inspect the current repository again (F5). Task states and notes are kept.',
     'Save task & notes': 'Save the selected task state, priority, due date and notes. Notes also save on their own as you type.',

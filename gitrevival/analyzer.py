@@ -266,6 +266,61 @@ def inspect(root: str | Path) -> Report:
         if name == 'setup.py':
             add('Build', 'Review executable Python packaging', rel, 'setup.py is present.',
                 'Inspect setup.py without executing it. Consider declarative packaging after reproducing the original behavior.', 'Info')
+    # Maintainability profile: recorded evidence only. Nothing is run, so
+    # test health comes from the shape of the tree and any recorded
+    # coverage files, never from executing the suite.
+    SOURCE_SUFFIXES = {'.py', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.c', '.h',
+                       '.cpp', '.hpp', '.cc', '.rs', '.go', '.java', '.rb', '.php',
+                       '.cs', '.swift', '.kt', '.lua', '.gd'}
+    source_paths = [p for p in paths if Path(p).suffix.lower() in SOURCE_SUFFIXES]
+    god_files = []
+    for rel, text in texts.items():
+        if Path(rel).suffix.lower() in SOURCE_SUFFIXES:
+            lines = text.count('\n') + 1
+            if lines >= 1500:
+                god_files.append((lines, rel))
+    for lines, rel in sorted(god_files, reverse=True)[:5]:
+        add('Maintainability', f'God file: {rel} is about {lines:,} lines', rel,
+            f'{rel} has about {lines:,} lines in one file.',
+            'Huge single files are the hardest to revive safely. Plan to understand and split this file early; expect changes here to be risky until then.',
+            confidence='Heuristic')
+    def is_test_path(rel):
+        parts = [part.lower() for part in Path(rel).parts]
+        name = parts[-1] if parts else ''
+        return (any(part in {'test', 'tests', 'spec', '__tests__'} for part in parts[:-1])
+                or name.startswith('test_') or name.endswith(('_test.py', '_test.go', '.test.js', '.test.ts', '.spec.js', '.spec.ts'))
+                or name.endswith(('test.cs', 'tests.cs', 'test.java', 'tests.java')))
+    test_paths = [p for p in source_paths if is_test_path(p)]
+    if source_paths and not test_paths:
+        add('Maintainability', 'No test files observed', '',
+            'Source files are present but no test files were found in the scanned tree.',
+            f'Every change will need manual checking ({len(source_paths)} source files and no harness). Budget early revival time for a small test harness around the core behaviour.', confidence='Heuristic')
+    elif test_paths:
+        add('Maintainability', 'Test files present', '',
+            'Test health is read from the tree shape only; the suite was not run.',
+            f'A test harness exists ({len(test_paths)} test files among {len(source_paths)} source files). Verify it still runs early — recorded coverage below says what was once measured.', 'Info', confidence='Heuristic')
+    coverage_files = [p for p in paths if Path(p).name.lower() in {'coverage.xml', 'coverage.json', 'lcov.info', '.coverage', 'coverage-final.json'}]
+    if coverage_files:
+        add('Maintainability', 'Recorded coverage evidence present', coverage_files[0],
+            'Coverage report files found: ' + ', '.join(coverage_files[:4]) + '. Contents were not parsed.',
+            'Someone once measured coverage here. Open the report to see what was covered when it was generated.', 'Info', confidence='Heuristic')
+    readme_lines = max((text.count('\n') + 1 for rel, text in texts.items()
+                        if Path(rel).name.lower().startswith('readme')), default=0)
+    has_docs = any(p.startswith('docs/') for p in paths)
+    design_docs = [p for p in paths if any(word in Path(p).name.lower() for word in ('architecture', 'design', 'adr', 'rfc'))]
+    if has_docs or design_docs:
+        add('Maintainability', 'Architecture documentation present', '',
+            f"docs/ folder: {'yes' if has_docs else 'no'}; design/architecture files: {', '.join(design_docs[:4]) or 'none named'}.",
+            'Read the recorded design intent before changing structure; it is the cheapest knowledge transfer this project offers.', 'Info', confidence='Heuristic')
+    elif readme_lines < 40:
+        add('Maintainability', 'Documentation is thin', '',
+            'No docs/ folder and only a short README.',
+            f'How this project works may live only in its history and its code (the README is about {readme_lines} lines). Budget time to write down what you learn as you revive it.', confidence='Heuristic')
+    if '.github/FUNDING.yml' in paths or 'FUNDING.yml' in paths:
+        add('Community', 'Sponsor or funding signals present', '.github/FUNDING.yml' if '.github/FUNDING.yml' in paths else 'FUNDING.yml',
+            'A FUNDING file is present, so the project once had (or sought) financial backing.',
+            'Past backers are latent support for a revival. Note the platforms listed in the file before planning outreach.', 'Info', confidence='Heuristic')
+
     # Internal dependency edges: static imports between files inside this
     # project only. Text-level matching; nothing is imported or executed.
     def resolve_python(module, package_parts):

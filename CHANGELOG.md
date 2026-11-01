@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.0
+
+The rehabilitation workbench release — the recorded roadmap, built:
+
+- **PR Graveyard in every repository Check:** open pull requests untouched for 6+ months that already have approvals, listed with links — ready-looking fixes a revival can start from.
+- **Contributor outreach:** each Check now names the top contributors other than the owner, by commit count.
+- **Maintainability profile in the local scan:** god files (about 1,500+ lines), test-harness presence read from the tree, recorded coverage files, documentation depth, and sponsor/funding signals — all from recorded evidence; target code is still never run.
+- **Online dependency audit** (window button and `gitrevival audit`): registry state for declared dependencies (PyPI, npm, crates.io, NuGet, RubyGems), published advisories matched to exact declared versions from GitHub's advisory database, crates.io dependent counts and npm weekly downloads, plus a namespace audit of the project's own package name with `-ng` / `2` / `-rs` variant availability.
+- **Kickstart drafts** (window button and `gitrevival kickstart`): ADOPTERS.md fork banner, OUTREACH.md maintainer letter, MODERNIZATION.md CI checklist with a current sample workflow, and a BACKLINK.md issue notice draft. Generated files only — nothing is posted, pushed, or overwritten.
+- **Headless discovery** (`gitrevival discover`): the plain-words find from the command line with strict filters (`--min-stars`, `--inactive-months 18-36`, `--license`, `--lang`, `--has-passing-ci`) and NDJSON output for scripts and cron. Like `audit`, it is an explicit online command; every other CLI command remains network-free.
+
 ## 0.8.0 — 2026-10-31
 
 Slice 1 of the rehabilitation-workbench review: deeper revival evidence.
