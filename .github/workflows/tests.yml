@@ -53,7 +53,8 @@ jobs:
           Invoke-WebRequest $env:CANDIDATE_URL -OutFile candidate.zip
           if ((Get-FileHash candidate.zip -Algorithm SHA256).Hash.ToLower() -ne $env:CANDIDATE_SHA256) { throw 'Digest mismatch' }
           Expand-Archive candidate.zip candidate
-          python tools/test_portable.py --package candidate/GitRevival-0.8.0-win-x64 --results portable-results.json
+          $folder = (Get-ChildItem candidate -Directory).Name
+          python tools/test_portable.py --package "candidate/$folder" --results portable-results.json
       - uses: actions/upload-artifact@v4
         with:
           name: portable-evidence-${{ matrix.os }}
