@@ -7,6 +7,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import webbrowser
 from .github import GitHubClient, repository_name, local_origin, lead_signals, evidence_text
+from .tooltips import add_tooltip
 
 class Discovery(ttk.Frame):
     def __init__(self, parent, app, client=None):
@@ -35,10 +36,14 @@ class Discovery(ttk.Frame):
         self.preset = tk.StringVar(value='Niche desktop GUIs')
         presets = ttk.Combobox(row,textvariable=self.preset,values=tuple(self.presets),state='readonly',width=18)
         presets.pack(side='left')
+        self.preset_box = presets
+        add_tooltip(presets,'Ready-made GitHub searches. Picking one fills in the search text; you can edit it before searching.')
         presets.bind('<<ComboboxSelected>>',lambda e:self.query.set(self.presets[self.preset.get()]))
         self.query = tk.StringVar(value=self.presets[self.preset.get()])
         query_entry = ttk.Entry(row,textvariable=self.query)
         query_entry.pack(side='left',fill='x',expand=True,padx=8)
+        self.query_entry = query_entry
+        add_tooltip(query_entry,'The GitHub search text. These are research filters only — a quiet project is not proof it is abandoned.')
         query_entry.bind('<Return>',lambda e:self.search(1))
         self.button(row,'Search GitHub',lambda:self.search(1),network=True)
         self.button(row,'Saved shortlist',self.show_saved)
@@ -48,6 +53,8 @@ class Discovery(ttk.Frame):
         self.repo_var = tk.StringVar()
         repo_entry = ttk.Entry(row,textvariable=self.repo_var,width=33)
         repo_entry.pack(side='left',fill='x',expand=True,padx=8)
+        self.repo_entry = repo_entry
+        add_tooltip(repo_entry,'A GitHub repository as owner/name, a GitHub web address, or a Git SSH address.')
         repo_entry.bind('<Return>',lambda e:self.check())
         self.button(row,'Check repository',self.check,network=True)
         self.button(row,'Use local origin',self.use_origin)
@@ -82,18 +89,37 @@ class Discovery(ttk.Frame):
         state = ttk.Combobox(row,textvariable=self.candidate_state,values=('Research','Promising','Investigating','Reviving','Passed'),state='readonly',width=14)
         state.pack(side='left')
         state.bind('<<ComboboxSelected>>',lambda e:self.notes.edit_modified(True))
+        self.state_box = state
+        add_tooltip(state,'Where your research on this candidate stands. Saved with the candidate when you save it to the shortlist.')
         self.button(row,'Save to shortlist',self.save)
         self.button(row,'Check selected',self.check_selected,network=True)
         self.button(row,'Open on GitHub',self.open_browser)
         ttk.Label(bottom,text='Research notes: unique benefit • alternatives • repair effort • permission questions • ownership',style='Muted.TLabel').pack(anchor='w')
         self.notes = app.textbox(bottom,height=3,editable=True)
         self.notes.edit_modified(False)
+        add_tooltip(self.tree,'Search results and saved candidates. The score is a research lead only — it does not judge value, safety or permission to reuse.')
+        add_tooltip(self.detail,'The saved or live evidence for the selected candidate, with the date it was fetched.')
+        add_tooltip(self.notes,'Your research notes for the selected candidate. Saved on this computer when you save the candidate to the shortlist.')
+        self._autosave_id = None
+        self.notes.bind('<<Modified>>',self._notes_modified)
         def layout(event):
             if event.height > 260:
                 split.sashpos(0,int(event.height*0.32))
                 split.unbind('<Configure>')
         split.bind('<Configure>',layout)
         self.after(100,self.poll)
+
+    def _notes_modified(self, event=None):
+        if not self.notes.edit_modified() or not self.selected:
+            return
+        if self._autosave_id is not None:
+            self.after_cancel(self._autosave_id)
+        self._autosave_id = self.after(1000, self._autosave_notes)
+
+    def _autosave_notes(self):
+        self._autosave_id = None
+        if self.selected and self.notes.edit_modified():
+            self.save()
 
     def button(self, row, title, command, network=False):
         button = ttk.Button(row,text=title,command=command)

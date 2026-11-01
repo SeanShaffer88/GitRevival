@@ -12,6 +12,10 @@ class Store:
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
+        # WAL keeps the workspace readable and intact if the app or the
+        # computer stops mid-save; the journal is checkpointed on close.
+        self.db.execute('PRAGMA journal_mode=WAL')
+        self.db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS projects (root TEXT PRIMARY KEY, name TEXT NOT NULL, report TEXT NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS tasks (root TEXT, id TEXT, status TEXT NOT NULL, notes TEXT NOT NULL, PRIMARY KEY(root,id))')
         self.db.execute('CREATE TABLE IF NOT EXISTS github_checks (name TEXT PRIMARY KEY, snapshot TEXT NOT NULL)')
@@ -32,6 +36,14 @@ class Store:
             self.db.execute('INSERT OR REPLACE INTO projects VALUES (?,?,?)', (report.root, report.name, payload))
             self.db.execute('INSERT INTO scan_history(root,at,report) VALUES (?,?,?)', (report.root,report.scanned_at,payload))
             self.db.execute('DELETE FROM scan_history WHERE root=? AND seq NOT IN (SELECT seq FROM scan_history WHERE root=? ORDER BY seq DESC LIMIT 20)', (report.root,report.root))
+
+    def get_setting(self, key, default=''):
+        row = self.db.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
+        return row[0] if row else default
+
+    def set_setting(self, key, value):
+        with self.db:
+            self.db.execute('INSERT OR REPLACE INTO settings VALUES (?,?)', (key, str(value)))
 
     def projects(self):
         return self.db.execute('SELECT root,name,report FROM projects ORDER BY name COLLATE NOCASE').fetchall()
