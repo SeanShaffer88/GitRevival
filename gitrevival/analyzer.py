@@ -15,7 +15,7 @@ SKIP = {'.git', '.hg', '.svn', 'node_modules', '.venv', 'venv', '__pycache__',
         'vendor', 'dist', 'build', 'bin', 'obj', '.idea', '.vs', '.local'}
 MANIFESTS = {'package.json', 'pyproject.toml', 'requirements.txt', 'setup.py',
              'Cargo.toml', 'go.mod', 'CMakeLists.txt', 'packages.config',
-             'global.json', '.gitmodules', '.travis.yml', 'appveyor.yml',
+             'global.json', '.gitmodules', '.travis.yml', 'appveyor.yml', '.appveyor.yml', 'circle.yml',
              'Dockerfile', 'Makefile', 'azure-pipelines.yml', 'vcpkg.json'}
 MAX_FILES = 15000
 MAX_BYTES = 512_000
@@ -245,15 +245,24 @@ def inspect(root: str | Path) -> Report:
                 'Inspect this manifest manually; dependency results for it are incomplete.', 'Review')
 
         if rel.startswith('.github/workflows/'):
-            for match in re.finditer(r'uses:\s*(actions/(?:checkout|setup-node|setup-python|upload-artifact|download-artifact))@(v[123])\b', text):
+            for match in re.finditer(r'uses:\s*(actions/(?:checkout|setup-node|setup-python|setup-go|setup-java|setup-dotnet|setup-ruby|cache|upload-artifact|download-artifact))@(v[123])\b', text):
                 add('Automation', 'Review an older GitHub Actions major version', rel, match.group(0),
                     'Read the action upstream migration notes, runtime requirements and runner support. Verify current versions before updating.', confidence='Heuristic', needle=match.group(0))
-            for match in re.finditer(r'\b(?:ubuntu-18\.04|ubuntu-16\.04|windows-2016|macos-10\.15)\b', text):
+            for match in re.finditer(r'uses:\s*(actions/(?!checkout|setup-node|setup-python|setup-go|setup-java|setup-dotnet|setup-ruby|cache|upload-artifact|download-artifact)[a-z0-9-]+)@(v1)\b', text):
+                add('Automation', 'Review a first-generation GitHub Action version', rel, match.group(0),
+                    'v1 actions run on retired runtimes. Check the action upstream for a current release before relying on this workflow.', confidence='Heuristic', needle=match.group(0))
+            for match in re.finditer(r'\b(?:ubuntu-18\.04|ubuntu-16\.04|ubuntu-20\.04|windows-2016|windows-2019|macos-10\.15|macos-11|macos-12)\b', text):
                 add('Automation', 'Review legacy hosted runner label', rel, match.group(0),
                     'Check the provider runner availability and select a currently supported image. Reproduce platform-specific behavior.', confidence='Heuristic', needle=match.group(0))
         if name == '.travis.yml':
             add('Automation', 'Confirm legacy CI still runs', rel, '.travis.yml is present.',
                 'Check upstream CI status, required secrets and service availability; retain useful test coverage when migrating.', confidence='Heuristic')
+        if name in {'appveyor.yml', '.appveyor.yml'}:
+            add('Automation', 'Confirm AppVeyor CI still runs', rel, f'{name} is present.',
+                'Check whether the AppVeyor project is still active and its builds still pass; retain useful Windows test coverage when migrating.', confidence='Heuristic')
+        if name == 'circle.yml':
+            add('Automation', 'Legacy CircleCI 1.0 configuration', rel, 'circle.yml is present.',
+                'CircleCI 1.0 shut down years ago; this configuration cannot run today. Treat the test commands in it as the record of how the project was verified.', confidence='Heuristic')
         if name == 'setup.py':
             add('Build', 'Review executable Python packaging', rel, 'setup.py is present.',
                 'Inspect setup.py without executing it. Consider declarative packaging after reproducing the original behavior.', 'Info')

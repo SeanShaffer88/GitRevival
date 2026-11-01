@@ -73,13 +73,17 @@ class GithubTests(unittest.TestCase):
     def test_live_check_filters_prs_and_retains_404_release_semantics(self):
         opener = Opener([REPO,http_error(404),[{'sha':'abc','commit':{'committer':{'date':'2020-01-01T00:00:00Z'}}}],
                          [{'number':1,'title':'Issue','html_url':'https://github.com/example/old-tool/issues/1'},
-                          {'number':2,'title':'PR','pull_request':{}}]])
+                          {'number':2,'title':'PR','pull_request':{}}],
+                         {'total_count':7},{'total_count':3},{'workflow_runs':[]},[]])
         result = GitHubClient(opener=opener).check('example/old-tool')
         self.assertIsNone(result['release'])
         self.assertIn('non-prerelease',result['checks']['release'])
         self.assertEqual(len(result['issues']),1)
         self.assertEqual(result['commit']['sha'],'abc')
-        self.assertEqual(len(opener.requests),4)
+        self.assertEqual(result['demand'],{'open_issues':7,'closed_issues_24mo':3,'window_since':result['demand']['window_since']})
+        self.assertIsNone(result['ci'])
+        self.assertEqual(result['living_forks'],[])
+        self.assertEqual(len(opener.requests),8)
     def test_partial_failure_stops_rate_limited_checks(self):
         opener = Opener([REPO,http_error(403,{'X-RateLimit-Remaining':'0'})])
         result = GitHubClient(opener=opener).check('example/old-tool')
@@ -139,7 +143,7 @@ class DiscoveryGuiTests(unittest.TestCase):
             app = App(Path(tmp)/'workspace.sqlite3')
             panel = app.discovery
             try:
-                panel.client = GitHubClient(opener=Opener([{'items':[REPO],'total_count':1,'incomplete_results':False}, REPO,http_error(404),[],[]]))
+                panel.client = GitHubClient(opener=Opener([{'items':[REPO],'total_count':1,'incomplete_results':False}, REPO,http_error(404),[],[],{'total_count':2},{'total_count':5},{'workflow_runs':[]},[]]))
                 app.tabs.select(panel)
                 app.update()
                 panel.query.set('example')

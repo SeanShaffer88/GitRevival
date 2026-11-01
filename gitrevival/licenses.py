@@ -64,3 +64,30 @@ def declared_matches(declared, detected):
         if cleaned in candidates:
             return True
     return False
+
+
+PERMISSIVE = {'MIT', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0', 'ISC',
+              'Unlicense', 'Zlib', '0BSD', 'CC0-1.0', 'MIT-0'}
+WEAK_COPYLEFT = {'LGPL-2.1', 'LGPL-3.0', 'MPL-2.0', 'EPL-1.0', 'EPL-2.0'}
+COPYLEFT = {'GPL-2.0', 'GPL-3.0', 'AGPL-3.0'}
+
+
+def license_class(spdx):
+    """Plain permissiveness label for one license identifier.
+
+    A triage label only: it says how much legal care a revival needs at a
+    glance, never what the license actually permits. Missing identifiers
+    are the risky case, so they get their own label instead of a guess.
+    """
+    if not spdx or spdx in {'Unknown', 'NOASSERTION', 'None'}:
+        return 'No licence identified'
+    if re.search(r'\b(?:OR|AND)\b', spdx):
+        return 'Multiple licences — read the text'
+    base = spdx.rstrip('+')
+    if base in PERMISSIVE:
+        return 'Permissive'
+    if base in WEAK_COPYLEFT:
+        return 'Weak copyleft'
+    if base in COPYLEFT:
+        return 'Copyleft'
+    return 'Other — read the text'

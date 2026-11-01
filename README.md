@@ -47,6 +47,21 @@ Choose **Load demo** to inspect a deliberately incomplete synthetic project. Cho
 
 Projects and notes are stored in `.local/workspace.sqlite3` beside the application. Back up that folder to retain your workspace; source packages exclude it. Keep the app in a writable folder. Notes are plain local SQLite data, not encrypted. Identical folder names can appear separately in the project list; the selected repository's full path appears above the tabs.
 
+## Revival potential, living forks and CI bitrot (0.8.0)
+
+A live **Check** now gathers the evidence that separates dead weight
+from a viable revival: **unmet demand** (open issues versus issues
+closed in the last 24 months), the **last known healthy state** (the
+most recent completed GitHub Actions run and whether it passed), and
+**living forks** — the top forks by stars, with an ahead/behind
+comparison whenever a fork has pushed more recently than the original,
+so a community continuation is spotted before anyone starts over.
+Licenses carry a plain permissiveness label (Permissive, Weak copyleft,
+Copyleft, No licence identified). The local scan flags more CI bitrot:
+old and first-generation GitHub Actions, retired runner labels,
+AppVeyor, and CircleCI 1.0 configurations. Future feature ideas live in
+[docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## Finding projects to revive (0.7.0)
 
 Discovery is the front door: the header's **Find projects to revive**
@@ -202,6 +217,8 @@ python -m unittest discover -s tests -v
 GUI smoke tests create and close real Tk windows, including asynchronous discovery/search/check/save/link/export flows. Tests use temporary state and mocked HTTP responses for deterministic failure and rate-limit coverage. No project fixture is installed or executed.
 
 Architecture: `analyzer.py` performs bounded read-only inspection; `store.py` saves task state, candidates and evidence snapshots; `github.py` provides read-only API requests and explainable lead signals; `discovery.py` implements candidate research; `app.py` owns the main UI. Inspection and HTTP requests run in worker threads. All Tk and SQLite work stays on the GUI thread. Closing the window cancels pending UI callbacks; HTTP workers are daemon threads and hold no database connection.
+
+Future feature ideas — revival-potential depth, registry and community tooling, headless discovery — are recorded in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Next useful milestones
 
