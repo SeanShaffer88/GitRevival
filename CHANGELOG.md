@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Bound index-v2 catalogue reads and allocations before insertion; validate table lengths, object-ID ordering/fanout and packed offsets. Loose objects and packs share the 50,000-entry limit, counting duplicates. Attempt at most 1,024 pack indexes; malformed/over-budget packs produce warnings without partial insertion. Structural checks do not verify checksums or authenticity.
+- Recovery publication races (including the Windows protocol gap) and delta resource hardening remain OPEN; this change does not fix or disable recovery.
+
 ## 0.10.0 — 2026-11-01
 
 - **Git recovery (advanced) tab:** a clearly separated forensic view of the open project's .git data — dangling commits (amended, rebased or reset-away work), reflog entries, and index state including partial recovery of a damaged index. Scanning is read-only; one explicit action rebuilds a chosen commit's files into a folder you pick, atomically and never overwriting anything already there.
