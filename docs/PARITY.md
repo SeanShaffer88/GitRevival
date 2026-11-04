@@ -1,5 +1,7 @@
 # GitRevival — Capability Parity
 
+
+Index catalogue hardening (source): GUI and CLI share bounded index-v2 parsing, an aggregate 50,000 stored-entry limit (duplicates included), and a 1,024 attempted-index limit with bounded warnings. Invalid packs are rejected whole; valid earlier catalogue entries remain available. Structural table/order/offset checks do not verify checksums or authenticity. Regression fixtures cover hostile counts, truncation, stale size metadata, large-offset references and cumulative limits. Recovery publication races / Windows protocol gap and delta resource hardening remain OPEN, unchanged by this patch. Portable packaging remains unverified: required CPython 3.15.1 is unavailable; local source checks use 3.15.2.
 Scored only from code and test evidence. "GUI" is the desktop window, "CLI" is `python -m gitrevival.cli`, "Test" names the covering test file. Updated with the 0.10.0 forensics release (2026-11-01).
 
 | Capability | GUI | CLI | Evidence / test |

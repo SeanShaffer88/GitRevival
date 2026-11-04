@@ -1,5 +1,7 @@
 # GitRevival — Quality Scorecard
 
+
+Index catalogue hardening (source): GUI and CLI share bounded index-v2 parsing, an aggregate 50,000 stored-entry limit (duplicates included), and a 1,024 attempted-index limit with bounded warnings. Invalid packs are rejected whole; valid earlier catalogue entries remain available. Structural table/order/offset checks do not verify checksums or authenticity. Regression fixtures cover hostile counts, truncation, stale size metadata, large-offset references and cumulative limits. Recovery publication races / Windows protocol gap and delta resource hardening remain OPEN, unchanged by this patch. Portable packaging remains unverified: required CPython 3.15.1 is unavailable; local source checks use 3.15.2.
 Scored from evidence only (code read, tests run, release records), most recently for the 0.10.0 forensics release on 2026-11-01. Scores are 0–5 per dimension. Anything without evidence is marked Unverified, not scored up.
 
 | Dimension | Score | Evidence |

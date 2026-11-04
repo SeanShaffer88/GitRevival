@@ -25,6 +25,7 @@ import struct
 import zlib
 
 MAX_OBJECTS = 50_000
+MAX_PACK_INDEXES = 1024
 MAX_OBJECT_BYTES = 33_554_432
 MAX_DELTA_DEPTH = 64
 MAX_RECOVER_FILES = 10_000
@@ -65,52 +66,86 @@ class ObjectStore:
         self.objects_dir = self.git_dir / 'objects'
         self.warnings = []
         self._loose = {}
-        self._packs = []  # (idx_bytes, pack_path, [sha,...], [offset,...])
+        self._packs = []  # (empty bytes, pack_path, [sha,...], [offset,...])
         self._cache = {}
         self._catalogue()
 
     def _catalogue(self):
         if self.objects_dir.is_dir():
-            for fanout in sorted(self.objects_dir.iterdir()):
+            for fanout in self.objects_dir.iterdir():
                 if len(fanout.name) == 2 and all(c in '0123456789abcdef' for c in fanout.name) and fanout.is_dir():
-                    for entry in sorted(fanout.iterdir()):
+                    for entry in fanout.iterdir():
                         if len(entry.name) == 38 and all(c in '0123456789abcdef' for c in entry.name):
+                            if len(self._loose) >= MAX_OBJECTS:
+                                break
                             self._loose[fanout.name + entry.name] = entry
                 if len(self._loose) >= MAX_OBJECTS:
                     self.warnings.append(f'Loose object catalogue stopped at {MAX_OBJECTS:,} objects.')
                     break
         pack_dir = self.objects_dir / 'pack'
         if pack_dir.is_dir():
-            for idx_path in sorted(pack_dir.glob('*.idx')):
+            for attempted, idx_path in enumerate(pack_dir.glob('*.idx')):
+                if attempted >= MAX_PACK_INDEXES:
+                    self.warnings.append(f'Pack index catalogue stopped at {MAX_PACK_INDEXES:,} indexes; results are partial.')
+                    break
                 try:
                     self._packs.append(self._read_idx(idx_path))
                 except (OSError, GitError, struct.error) as exc:
                     self.warnings.append(f'Pack index unreadable: {idx_path.name} ({exc.__class__.__name__})')
-        total = len(self._loose) + sum(len(p[2]) for p in self._packs)
-        if total > MAX_OBJECTS:
-            self.warnings.append(f'Repository holds more than {MAX_OBJECTS:,} objects; results are partial.')
 
     def _read_idx(self, idx_path):
-        data = idx_path.read_bytes()
-        if len(data) < 8 + 256 * 4 or data[:4] != b'\xfftOc':
-            raise GitError('not a version-2 pack index')
-        version = struct.unpack('>I', data[4:8])[0]
-        if version != 2:
-            raise GitError(f'unsupported pack index version {version}')
-        fanout = struct.unpack('>256I', data[8:8 + 256 * 4])
-        count = fanout[255]
-        base = 8 + 256 * 4
-        shas = [data[base + i * 20: base + (i + 1) * 20].hex() for i in range(count)]
-        off_base = base + count * 20 + count * 4
+        remaining = MAX_OBJECTS - len(self._loose) - sum(len(p[2]) for p in self._packs)
+        with idx_path.open('rb') as stream:
+            header = stream.read(1032)
+            if len(header) != 1032 or header[:4] != b'\xfftOc':
+                raise GitError('not a version-2 pack index')
+            version = struct.unpack('>I', header[4:8])[0]
+            if version != 2:
+                raise GitError(f'unsupported pack index version {version}')
+            fanout = struct.unpack('>256I', header[8:])
+            count = fanout[-1]
+            if count > remaining or any(a > b for a, b in zip(fanout, fanout[1:])):
+                raise GitError('Invalid fanout or catalogue capacity exceeded')
+            minimum = 28 * count + 40
+            size = os.fstat(stream.fileno()).st_size - 1032
+            if size < minimum or size > minimum + 8 * count or (size - minimum) % 8:
+                raise GitError('Invalid pack index table length')
+            data = stream.read(minimum + 8 * count + 1)
+            if len(data) != size:
+                raise GitError('Invalid pack index table length')
+        large_count = (len(data) - minimum) // 8
+        pack_path = idx_path.with_suffix('.pack')
+        pack_size = pack_path.stat().st_size
+        shas = []
         offsets = []
-        large_base = off_base + count * 4
+        buckets = [0] * 256
+        previous = b''
+        references = set()
         for i in range(count):
-            raw = struct.unpack('>I', data[off_base + i * 4: off_base + i * 4 + 4])[0]
+            sha = data[i * 20:(i + 1) * 20]
+            if sha <= previous:
+                raise GitError('Pack index object IDs are not ordered')
+            previous = sha
+            buckets[sha[0]] += 1
+            shas.append(sha.hex())
+            raw = struct.unpack_from('>I', data, count * 24 + i * 4)[0]
             if raw & 0x80000000:
-                large_at = large_base + (raw & 0x7FFFFFFF) * 8
-                raw = struct.unpack('>Q', data[large_at: large_at + 8])[0]
+                reference = raw & 0x7fffffff
+                if reference >= large_count:
+                    raise GitError('Invalid large-offset reference')
+                references.add(reference)
+                raw = struct.unpack_from('>Q', data, count * 28 + reference * 8)[0]
+            if not 12 <= raw < pack_size - 20:
+                raise GitError('Invalid packed object offset')
             offsets.append(raw)
-        return (data, idx_path.with_suffix('.pack'), shas, offsets)
+        if len(references) != large_count:
+            raise GitError('Unused large-offset table entries')
+        running = 0
+        for bucket, expected in zip(buckets, fanout):
+            running += bucket
+            if running != expected:
+                raise GitError('Pack index fanout does not match object IDs')
+        return (b'', pack_path, shas, offsets)
 
     def __contains__(self, sha):
         return sha in self._loose or any(sha in pack[2] for pack in self._packs)
@@ -146,6 +181,8 @@ class ObjectStore:
 
     def _read_packed(self, pack_path, offset, depth):
         with pack_path.open('rb') as stream:
+            if not 12 <= offset < os.fstat(stream.fileno()).st_size - 20:
+                raise GitError('Invalid packed object offset')
             stream.seek(offset)
             head = stream.read(1)[0]
             kind_num = (head >> 4) & 0x7

@@ -4,6 +4,7 @@ Objects, packfiles, reflogs and index files are constructed byte by byte
 so the parsers are tested against the formats themselves.
 """
 import json
+import io
 import struct
 import subprocess
 import sys
@@ -11,6 +12,7 @@ import tempfile
 import time
 import tkinter as tk
 import unittest
+from unittest.mock import patch
 import zlib
 from pathlib import Path
 
@@ -190,6 +192,137 @@ class ObjectStoreTests(GitFixture):
         base = b'hello world'
         delta = bytes([11, 5, 0x90, 5])  # base 11 bytes, target 5, copy op (size byte follows): copy 5 from offset 0
         self.assertEqual(_apply_delta(base, delta), b'hello')
+
+
+class PackCatalogueTests(GitFixture):
+    def write_idx(self, shas=(), offsets=None, large=b'', fanout=None, tail=b''):
+        directory = self.git / 'objects' / 'pack'
+        directory.mkdir(exist_ok=True)
+        if fanout is None:
+            fanout = [sum(sha[0] <= i for sha in shas) for i in range(256)]
+        if offsets is None:
+            offsets = [12] * len(shas)
+        data = (b'\xfftOc' + struct.pack('>I256I', 2, *fanout)
+                + b''.join(shas) + bytes(4 * len(shas))
+                + b''.join(struct.pack('>I', o) for o in offsets)
+                + large + bytes(40) + tail)
+        path = directory / 'fixture.idx'
+        path.write_bytes(data)
+        path.with_suffix('.pack').write_bytes(b'PACK' + bytes(60))
+        return path
+
+    def assert_rejected(self):
+        store = ObjectStore(self.git)
+        self.assertEqual(store._packs, [])
+        self.assertTrue(store.warnings)
+
+    def test_huge_count_and_decreasing_fanout(self):
+        for fanout in ([0xffffffff] * 256, [1, 0] + [1] * 254):
+            with self.subTest(fanout=fanout[:2]):
+                self.write_idx(fanout=fanout)
+                self.assert_rejected()
+
+    def test_truncated_header_and_tables(self):
+        path = self.write_idx([bytes(20)])
+        data = path.read_bytes()
+        for length in (7, 1031, 1032, 1051, 1055, 1059, len(data) - 1):
+            with self.subTest(length=length):
+                path.write_bytes(data[:length])
+                self.assert_rejected()
+
+    def test_order_fanout_and_offsets(self):
+        cases = [dict(shas=[bytes([2]) * 20, bytes([1]) * 20]),
+                 dict(shas=[bytes(20)] * 2),
+                 dict(shas=[bytes(20)], fanout=[0] * 255 + [1]),
+                 dict(shas=[bytes(20)], offsets=[11]),
+                 dict(shas=[bytes(20)], offsets=[52]),
+                 dict(shas=[bytes(20)], offsets=[0x80000000]),
+                 dict(shas=[bytes(20)], offsets=[0x80000001], large=struct.pack('>Q', 12)),
+                 dict(shas=[bytes(20)], large=bytes(16)),
+                 dict(shas=[bytes(20)], large=struct.pack('>Q', 12)),
+                 dict(shas=[bytes(20)], tail=b'x')]
+        for case in cases:
+            with self.subTest(case=case):
+                self.write_idx(**case)
+                self.assert_rejected()
+
+    def test_valid_large_offset_and_buffer_not_retained(self):
+        self.write_idx([bytes(20)], [0x80000000], struct.pack('>Q', 12))
+        store = ObjectStore(self.git)
+        self.assertFalse(store.warnings)
+        self.assertEqual(store._packs[0][0], b'')
+        self.assertEqual(store._packs[0][3], [12])
+
+    def test_actual_reads_bounded_despite_stale_size(self):
+        path = self.write_idx([bytes(20)])
+        data = path.read_bytes()
+        requests = []
+        class GrowingIndex(io.BytesIO):
+            def fileno(self):
+                return 123
+            def read(self, size=-1):
+                requests.append(size)
+                if size < 0 or size > 1032:
+                    raise AssertionError('unbounded index read')
+                return super().read(size)
+        store = ObjectStore(self.git)
+        with patch.object(Path, 'open', return_value=GrowingIndex(data + bytes(1000))), \
+             patch('gitrevival.gitobjects.os.fstat') as stat:
+            stat.return_value.st_size = len(data)
+            with self.assertRaises(ValueError):
+                store._read_idx(path)
+        self.assertEqual(requests, [1032, 77])
+
+    def test_packed_offset_revalidated_before_seek(self):
+        path = self.write_idx([bytes(20)])
+        store = ObjectStore(self.git)
+        path.with_suffix('.pack').write_bytes(bytes(32))
+        with self.assertRaisesRegex(ValueError, 'Invalid packed object offset'):
+            store.read(bytes(20).hex())
+
+    def test_aggregate_duplicates_and_whole_pack_rejection(self):
+        sha = loose(self.git, 'blob', b'loose')
+        path = self.write_idx([bytes.fromhex(sha)])
+        second = path.with_name('second.idx')
+        second.write_bytes(path.read_bytes())
+        second.with_suffix('.pack').write_bytes(path.with_suffix('.pack').read_bytes())
+        with patch('gitrevival.gitobjects.MAX_OBJECTS', 2):
+            store = ObjectStore(self.git)
+        self.assertEqual(len(store.shas()), 2)
+        self.assertEqual(len(store._packs), 1)
+        self.assertTrue(store.warnings)
+        self.write_idx([bytes(20), bytes([1]) * 20])
+        second.unlink()
+        with patch('gitrevival.gitobjects.MAX_OBJECTS', 2):
+            store = ObjectStore(self.git)
+        self.assertEqual(store.shas(), [sha])
+        self.assertTrue(store.warnings)
+
+    def test_loose_insertion_budget(self):
+        for i in range(4):
+            loose(self.git, 'blob', str(i).encode())
+        with patch('gitrevival.gitobjects.MAX_OBJECTS', 2):
+            store = ObjectStore(self.git)
+        self.assertEqual(len(store.shas()), 2)
+        self.assertTrue(store.warnings)
+
+    def test_empty_and_malformed_index_attempts_and_warnings_bounded(self):
+        for malformed in (False, True):
+            with self.subTest(malformed=malformed):
+                path = self.write_idx()
+                data = b'bad' if malformed else path.read_bytes()
+                for i in range(5):
+                    other = path.with_name(f'{i}.idx')
+                    other.write_bytes(data)
+                    other.with_suffix('.pack').write_bytes(bytes(40))
+                path.write_bytes(data)
+                with patch('gitrevival.gitobjects.MAX_PACK_INDEXES', 2), \
+                     patch.object(ObjectStore, '_read_idx', autospec=True,
+                                  side_effect=ObjectStore._read_idx) as read:
+                    store = ObjectStore(self.git)
+                self.assertEqual(read.call_count, 2)
+                self.assertLessEqual(len(store.warnings), 3)
+                self.assertIn('results are partial', store.warnings[-1])
 
 
 class IndexTests(GitFixture):
